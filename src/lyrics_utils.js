@@ -1,5 +1,5 @@
 /**
- * Lyrics Utilities for Freyr-JS
+ * Lyrics Utilities for music-downloader
  * 
  * This module provides utilities for converting and formatting lyrics
  * from Apple Music's TTML format to various synced formats.

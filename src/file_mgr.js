@@ -96,7 +96,7 @@ export default function genFile(opts) {
 genFile.garbageCollect = garbageCollect;
 
 async function test() {
-  const filename = 'freyr_mgr_temp_file';
+  const filename = 'musiquedl_mgr_temp_file';
   async function testMgr(args) {
     const file = await genFile({filename, ...args}).read();
     console.log('mgr>', file);

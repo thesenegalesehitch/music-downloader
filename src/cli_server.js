@@ -11,7 +11,7 @@ function wrapHTML(opts) {
     `<!DOCTYPE html>
     <html>
     <head>
-      <title> FreyrCLI </title>
+      <title> MusicDownloaderCLI </title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
       <style>
@@ -45,7 +45,7 @@ function wrapHTML(opts) {
 
     <body>
       <div class="box center-v">
-        <h1>FreyrCLI</h1>
+        <h1>MusicDownloaderCLI</h1>
         <hr width="45%" />
         <b>:{service}</b>
         <hr width="80%" />

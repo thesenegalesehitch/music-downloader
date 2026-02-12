@@ -140,7 +140,7 @@ export default class Spotify {
    * Wraps track metadata from Spotify API response into a standardized format
    * 
    * This function extracts all available metadata from a Spotify track and
-   * converts it into a format compatible with Freyr-JS metadata embedding system.
+   * converts it into a format compatible with music-downloader metadata embedding system.
    * 
    * **Metadata Fields Extracted:**
    * 

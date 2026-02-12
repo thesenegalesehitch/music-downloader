@@ -19,7 +19,7 @@
   },
   "filters": [],
   "dirs": {
-    "output": ".",
+    "output": "./downloads",
     "check": [],
     "cache": {
       "path": "<cache>",
@@ -38,13 +38,50 @@
     "width": 640,
     "height": 640
   },
+  "audio": {
+    "quality": "best",
+    "format": "auto",
+    "bitrate": 320,
+    "codec": "auto"
+  },
+  "cover_art": {
+    "enabled": true,
+    "max_size": 1280,
+    "format": "jpg",
+    "quality": 95,
+    "save_cover": true
+  },
+  "explicit": {
+    "enabled": true,
+    "tag_id3v2": true,
+    "filter_explicit": false,
+    "prefer_clean": false
+  },
+  "lyrics": {
+    "enabled": true,
+    "save_lrc": true,
+    "save_srt": true,
+    "embed_lyrics": true,
+    "source": "auto"
+  },
   "metadata": {
-    "saveLyrics": true,
-    "lyricsFormat": "lrc",
-    "includeFeatured": true,
-    "coverSize": "1280x1280",
-    "preferExplicit": true,
-    "fetchComposer": true
+    "enabled": true,
+    "id3_version": "2.4",
+    "include_genre": true,
+    "include_label": true,
+    "include_isrc": true,
+    "include_copyright": true,
+    "include_release_date": true,
+    "include_lyrics": true,
+    "include_bpm": false,
+    "include_key": false
+  },
+  "output": {
+    "template": "%artist% - %title%",
+    "template_album": "%artist%/%album%/%track% - %title%",
+    "lowercase": false,
+    "spaces_to_underscores": false,
+    "preserve_folder_structure": false
   },
   "downloader": {
     "memCache": true,

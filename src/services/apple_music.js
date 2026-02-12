@@ -1,6 +1,6 @@
 /* eslint-disable camelcase, no-underscore-dangle, class-methods-use-this */
 /**
- * Apple Music Service for Freyr-JS
+ * Apple Music Service for music-downloader
  * 
  * This service provides integration with Apple Music API to download tracks,
  * albums, artists, and playlists with full metadata extraction.
@@ -178,7 +178,7 @@ export default class AppleMusic {
    * Wraps track metadata from Apple Music API response into a standardized format
    * 
    * This function extracts all available metadata from an Apple Music track and
-   * converts it into a format compatible with Freyr-JS metadata embedding system.
+   * converts it into a format compatible with music-downloader metadata embedding system.
    * 
    * **New Features from GAMDL Analysis:**
    * - Synced lyrics in LRC format (for karaoke/lyrics apps)

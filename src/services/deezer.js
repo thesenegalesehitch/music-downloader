@@ -241,26 +241,14 @@ export default class Deezer {
    */
   async resolveShortLink(shortUrl) {
     try {
+      // Use got to follow redirects
       const response = await got(shortUrl, {
         method: 'GET',
+        followRedirect: true,
         throwHttpErrors: false,
       });
       
-      // Follow redirect manually
-      if (response.statusCode >= 300 && response.statusCode < 400) {
-        const location = response.headers.location;
-        if (location) {
-          // If relative URL, make it absolute
-          if (location.startsWith('/')) {
-            return `https://www.deezer.com${location}`;
-          }
-          return location;
-        }
-      } else if (response.statusCode === 200) {
-        // If we got a 200, use the final URL
-        return response.url;
-      }
-      return null;
+      return response.url;
     } catch (err) {
       console.error(`Failed to resolve Deezer short link: ${err.message}`);
       return null;
@@ -271,7 +259,7 @@ export default class Deezer {
    * Wraps track metadata from Deezer API response into a standardized format
    * 
    * This function extracts all available metadata from a Deezer track and
-   * converts it into a format compatible with Freyr-JS metadata embedding system.
+   * converts it into a format compatible with music-downloader metadata embedding system.
    * 
    * **Metadata Fields Extracted:**
    * 

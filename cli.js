@@ -35,7 +35,7 @@ import _mergeWith from 'lodash.mergewith';
 import symbols from './src/symbols.js';
 import fileMgr from './src/file_mgr.js';
 import pFlatten from './src/p_flatten.js';
-import FreyrCore from './src/freyr.js';
+import MusicDownloaderCore from './src/freyr.js';
 import AuthServer from './src/cli_server.js';
 import AsyncQueue from './src/async_queue.js';
 import parseRange from './src/parse_range.js';
@@ -278,10 +278,10 @@ async function processPromise(promise, logger, messageHandlers) {
 }
 
 const VALIDS = {
-  sources: FreyrCore.getEngineMetas()
+  sources: MusicDownloaderCore.getEngineMetas()
     .filter(meta => meta.PROPS.isSourceable)
     .map(meta => meta.ID),
-  bitrates: FreyrCore.getBitrates(),
+  bitrates: MusicDownloaderCore.getBitrates(),
   concurrency: ['queries', 'tracks', 'trackStage', 'downloader', 'encoder', 'embedder'],
 };
 
@@ -629,7 +629,7 @@ async function init(packageJson, queries, options) {
       enabled: {type: 'boolean'},
     },
   };
-  FreyrCore.ENGINES.forEach(engine => {
+  MusicDownloaderCore.ENGINES.forEach(engine => {
     schema.services.default[engine[symbols.meta].ID] = {};
     schema.services.properties[engine[symbols.meta].ID] = {
       type: 'object',
@@ -780,9 +780,9 @@ async function init(packageJson, queries, options) {
 
   let freyrCore;
   try {
-    freyrCore = new FreyrCore(Config.services, AuthServer, Config.server);
+    freyrCore = new MusicDownloaderCore(Config.services, AuthServer, Config.server);
   } catch (err) {
-    stackLogger.error(`\x1b[31m[!]\x1b[0m Failed to initialize a Freyr Instance`);
+    stackLogger.error(`\x1b[31m[!]\x1b[0m Failed to initialize a MusicDownloader Instance`);
     stackLogger.error('SHOW_DEBUG_STACK' in process.env ? util.formatWithOptions({colors: true}, err) : err['message'] || err);
     process.exit(6);
   }
@@ -1029,7 +1029,7 @@ async function init(packageJson, queries, options) {
       let imageBytesWritten = 0;
       try {
         imageFile = await fileMgr({
-          filename: `freyrcli-${meta.fingerprint}.x4i`,
+          filename: `musiquedl-${meta.fingerprint}.x4i`,
           tmpdir: !Config.dirs.cache.path,
           dirname: baseCacheDir,
           keep: true,
@@ -1063,7 +1063,7 @@ async function init(packageJson, queries, options) {
       let audioBytesWritten = 0;
       try {
         rawAudio = await fileMgr({
-          filename: `freyrcli-${meta.fingerprint}.x4a`,
+          filename: `musiquedl-${meta.fingerprint}.x4a`,
           tmpdir: !Config.dirs.cache.path,
           dirname: baseCacheDir,
           keep: true,
@@ -1256,9 +1256,17 @@ async function init(packageJson, queries, options) {
           composer: track.composers,
           album: track.album,
           genre: (genre => (genre ? genre.concat(' ') : ''))((track.genres || [])[0]),
-          tracknum: `${track.track_number}/${track.total_tracks}`,
-          disk: `${track.disc_number}${track.total_discs ? `/${track.total_discs}` : ''}`,
-          year: new Date(track.release_date).toISOString().split('T')[0],
+          tracknum: track.total_tracks
+            ? `${track.track_number}/${track.total_tracks}`
+            : `${track.track_number}`,
+          disk: track.disc_number
+            ? `${track.disc_number}${track.total_discs ? `/${track.total_discs}` : ''}`
+            : '',
+          year: (() => {
+            const date = track.release_date ? new Date(track.release_date) : new Date();
+            const iso = date.toISOString();
+            return iso !== 'Invalid Date' ? iso.split('T')[0] : '';
+          })(),
           comment: track.comments || '',
           grouping: track.grouping || '',
           rDNSatom: rDNSatoms,
@@ -1269,7 +1277,8 @@ async function init(packageJson, queries, options) {
               ? 'explicit'
               : undefined, // Don't set advisory if not explicit/clean/inoffensive
           stik: 'Normal',
-          albumArtist: track.album_artist,
+          albumSort: track.albumSortName || track.album || '',
+          artistSort: track.artistSortNames?.[0] || track.artists?.[0] || '',
           purchaseDate: 'timestamp',
           apID: 'cli@musiquedl.git',
           copyright: track.copyrights
@@ -1754,7 +1763,7 @@ async function init(packageJson, queries, options) {
     
     // Check for shortlink type and resolve it
     let resolvedQuery = query;
-    const parsedUri = FreyrCore.parseURI(query);
+    const parsedUri = MusicDownloaderCore.parseURI(query);
     if (parsedUri && parsedUri.type === 'shortlink') {
       queryLogger.log('[\u2022] Resolving short link...');
       try {
@@ -1937,6 +1946,270 @@ async function init(packageJson, queries, options) {
   await encodeQueue.cleanup();
 }
 
+async function interactiveMode(packageJson, queries, options) {
+  console.clear();
+  
+  // Display welcome banner
+  const banner = await fs.readFile(xpath.join(__dirname, 'banner.js'), 'utf8');
+  console.log(banner);
+  console.log('\n');
+  console.log('\x1b[36m=== 🎵 Interactive Music Downloader 🎵 ===\x1b[0m\n');
+  console.log('Welcome! This tool helps you download music from Spotify, Apple Music, and Deezer.');
+  console.log('Simply paste a link and follow the prompts.\n');
+  
+  const readline = (await import('readline')).default;
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  const askQuestion = (question) => new Promise((resolve) => {
+    rl.question(question, resolve);
+  });
+  
+  try {
+    // Load config from conf.json
+    let config;
+    try {
+      config = JSON.parse(await fs.readFile(xpath.join(__dirname, 'conf.json')));
+    } catch (err) {
+      console.log('\x1b[31m❌ Failed to load configuration. Using defaults.\x1b[0m');
+      config = {};
+    }
+    
+    // Step 1: Ask for the link
+    let link = '';
+    while (!link) {
+      link = await askQuestion('\n\x1b[33m📋 Paste your music link (Spotify, Apple Music, or Deezer):\x1b[0m\n   > ');
+      link = link.trim();
+      if (!link) {
+        console.log('\x1b[31mPlease enter a valid link.\x1b[0m\n');
+      }
+    }
+    
+    console.log('\n\x1b[36m🔍 Analyzing link...\x1b[0m\n');
+    
+    // Detect platform and content type
+    const serviceClass = MusicDownloaderCore.identifyService(link);
+    
+    if (!serviceClass) {
+      console.log('\x1b[31m❌ Could not identify a supported service from this link.\x1b[0m');
+      console.log('\nSupported services:');
+      console.log('  • Spotify: open.spotify.com');
+      console.log('  • Apple Music: music.apple.com');
+      console.log('  • Deezer: www.deezer.com');
+      rl.close();
+      return;
+    }
+    
+    // Create service instance with config
+    const serviceConfig = config.services?.[serviceClass[symbols.meta].ID] || {};
+    let service;
+    try {
+      service = new serviceClass(serviceConfig, null, {});
+    } catch (err) {
+      console.log(`\x1b[31m❌ ${serviceClass[symbols.meta].DESC} initialization failed: ${err.message}\x1b[0m`);
+      console.log('\nTo use this service, you need to configure API credentials in conf.json');
+      
+      if (serviceClass[symbols.meta].ID === 'spotify') {
+        console.log('\nFor Spotify:');
+        console.log('  1. Go to https://developer.spotify.com/dashboard');
+        console.log('  2. Create an app to get Client ID and Client Secret');
+        console.log('  3. Add them to conf.json under services.spotify');
+      } else if (serviceClass[symbols.meta].ID === 'apple_music') {
+        console.log('\nFor Apple Music:');
+        console.log('  1. Go to https://developer.apple.com/music/');
+        console.log('  2. Create a MusicKit token');
+        console.log('  3. Add it to conf.json under services.apple_music.developerToken');
+      }
+      
+      rl.close();
+      return;
+    }
+    
+    const serviceMeta = serviceClass[symbols.meta];
+    console.log(`✓ Detected: \x1b[32m${serviceMeta.DESC}\x1b[0m`);
+    
+    // Check authentication status for services that need it
+    if (serviceMeta.ID === 'spotify' || serviceMeta.ID === 'apple_music') {
+      const isAuthed = serviceConfig.clientId && serviceConfig.clientSecret && serviceConfig.refreshToken;
+      if (!isAuthed) {
+        console.log('\x1b[33m⚠️  Note: Full authentication may be required for this service.\x1b[0m');
+        console.log('  Some features may be limited without valid credentials.');
+      }
+    }
+    
+    // Identify content type and resolve shortlinks
+    let parsedUri = MusicDownloaderCore.parseURI(link);
+    let contentType = parsedUri?.type || 'unknown';
+    
+    // Handle shortlinks
+    if (contentType === 'shortlink' && service.resolveShortLink) {
+      console.log('\x1b[36m🔗 Resolving short link...\x1b[0m');
+      try {
+        const resolvedUrl = await service.resolveShortLink(link);
+        if (resolvedUrl) {
+          console.log(`✓ Resolved to: ${resolvedUrl}`);
+          parsedUri = MusicDownloaderCore.parseURI(resolvedUrl);
+          contentType = parsedUri?.type || 'unknown';
+        }
+      } catch (err) {
+        console.log(`\x1b[31m❌ Failed to resolve short link: ${err.message}\x1b[0m`);
+      }
+    }
+    
+    console.log(`✓ Content Type: \x1b[32m${contentType}\x1b[0m\n`);
+    
+    // Step 2: Fetch and display metadata preview
+    console.log('\x1b[36m📄 Fetching content information...\x1b[0m\n');
+    
+    let contentInfo = null;
+    try {
+      switch (contentType) {
+        case 'track':
+          contentInfo = await service.getTrack(link, options.storefront);
+          break;
+        case 'album':
+          contentInfo = await service.getAlbum(link, options.storefront);
+          break;
+        case 'playlist':
+          contentInfo = await service.getPlaylist(link, options.storefront);
+          break;
+        default:
+          console.log(`\x1b[33m⚠️  Content type "${contentType}" may have limited support.\x1b[0m`);
+      }
+    } catch (err) {
+      console.log(`\x1b[31m❌ Failed to fetch content: ${err.message || err}\x1b[0m`);
+    }
+    
+    if (contentInfo) {
+      // Display content info
+      console.log('\x1b[37m┌─────────────────────────────────────────────┐\x1b[0m');
+      console.log('\x1b[37m│ 📋 Content Preview                         │\x1b[0m');
+      console.log('\x1b[37m├─────────────────────────────────────────────┤\x1b[0m');
+      
+      if (contentInfo.name) {
+        const name = contentInfo.name.length > 40 ? contentInfo.name.substring(0, 40) + '...' : contentInfo.name;
+        console.log(`\x1b[37m│ Name: \x1b[0m${name.padEnd(37)}│\x1b[0m`);
+      }
+      
+      if (contentInfo.artists || contentInfo.artist || contentInfo.owner_name) {
+        const artist = (contentInfo.artists || contentInfo.artist || contentInfo.owner_name);
+        const artistStr = Array.isArray(artist) ? artist.join(', ') : artist;
+        const displayArtist = artistStr.length > 37 ? artistStr.substring(0, 37) + '...' : artistStr;
+        console.log(`\x1b[37m│ Artist: \x1b[0m${displayArtist.padEnd(34)}│\x1b[0m`);
+      }
+      
+      if (contentInfo.ntracks !== undefined) {
+        console.log(`\x1b[37m│ Tracks: \x1b[0m${`${contentInfo.ntracks}`.padEnd(37)}│\x1b[0m`);
+      }
+      
+      if (contentInfo.release_date) {
+        console.log(`\x1b[37m│ Year: \x1b[0m${`${new Date(contentInfo.release_date).getFullYear()}`.padEnd(38)}│\x1b[0m`);
+      }
+      
+      if (contentInfo.type) {
+        console.log(`\x1b[37m│ Type: \x1b[0m${`${contentInfo.type}`.padEnd(38)}│\x1b[0m`);
+      }
+      
+      console.log('\x1b[37m└─────────────────────────────────────────────┘\x1b[0m\n');
+    }
+    
+    // Step 3: Ask for download folder
+    let downloadDir = await askQuestion('\x1b[33m📁 Enter download directory (press Enter for current directory):\x1b[0m\n   > ');
+    
+    if (!downloadDir.trim()) {
+      downloadDir = '.';
+    }
+    
+    // Validate directory
+    try {
+      const dirStat = await maybeStat(downloadDir);
+      if (!dirStat) {
+        const createDir = await askQuestion(`\x1b[33mDirectory "${downloadDir}" doesn't exist. Create it? (y/n):\x1b[0m `);
+        if (createDir.toLowerCase().startsWith('y')) {
+          await mkdirp(downloadDir);
+          console.log(`\x1b[32m✓ Created directory: ${downloadDir}\x1b[0m\n`);
+        } else {
+          console.log('\x1b[31m❌ Download cancelled.\x1b[0m\n');
+          rl.close();
+          return;
+        }
+      }
+    } catch (err) {
+      console.log(`\x1b[31m❌ Error accessing directory: ${err.message}\x1b[0m`);
+      rl.close();
+      return;
+    }
+    
+    // Step 4: Quality options
+    console.log('\n\x1b[36m🎵 Audio Quality Options:\x1b[0m');
+    console.log('  1. Highest (320kbps) - Recommended');
+    console.log('  2. High (256kbps)');
+    console.log('  3. Medium (192kbps)');
+    
+    let quality = await askQuestion('\n\x1b[33mSelect quality (1-3) [default: 1]:\x1b[0m ');
+    
+    switch (quality.trim()) {
+      case '2':
+        options.bitrate = '256k';
+        break;
+      case '3':
+        options.bitrate = '192k';
+        break;
+      default:
+        options.bitrate = '320k';
+    }
+    
+    console.log(`\n\x1b[32m✓ Selected quality: ${options.bitrate}\x1b[0m\n`);
+    
+    // Step 5: Additional options
+    const saveCover = await askQuestion('\x1b[33m📷 Save album cover art? (y/n) [default: y]:\x1b[0m ');
+    options.cover = !saveCover.toLowerCase().startsWith('n');
+    
+    const saveLyrics = await askQuestion('\x1b[33m📝 Save lyrics if available? (y/n) [default: y]:\x1b[0m ');
+    options.saveLyrics = !saveLyrics.toLowerCase().startsWith('n');
+    
+    // Step 6: Confirmation
+    console.log('\n');
+    console.log('\x1b[37m┌─────────────────────────────────────────────┐\x1b[0m');
+    console.log('\x1b[37m│ ✅ Ready to Download                        │\x1b[0m');
+    console.log('\x1b[37m├─────────────────────────────────────────────┤\x1b[0m');
+    console.log(`\x1b[37m│ Source: \x1b[0m${serviceMeta.DESC}`.padEnd(38) + '│\x1b[0m');
+    console.log(`\x1b[37m│ Content: \x1b[0m${contentType}`.padEnd(35) + '│\x1b[0m');
+    console.log(`\x1b[37m│ Directory: \x1b[0m${downloadDir}`.padEnd(30) + '│\x1b[0m');
+    console.log(`\x1b[37m│ Quality: \x1b[0m${options.bitrate}`.padEnd(34) + '│\x1b[0m');
+    console.log(`\x1b[37m│ Cover: \x1b[0m${options.cover ? 'Yes' : 'No'}`.padEnd(36) + '│\x1b[0m');
+    console.log('\x1b[37m└─────────────────────────────────────────────┘\x1b[0m\n');
+    
+    const confirmDownload = await askQuestion('\x1b[33m🚀 Press Enter to start downloading...\x1b[0m ');
+    
+    if (confirmDownload === null || confirmDownload === '') {
+      console.clear();
+      
+      // Set up options for download
+      options.directory = downloadDir;
+      options.input = [];
+      queries = [link];
+      
+      // Close the interactive interface
+      rl.close();
+      
+      console.log('\n\x1b[36m⬇️  Starting download...\x1b[0m\n');
+      
+      // Proceed with normal download
+      await init(packageJson, queries, options);
+    } else {
+      console.log('\x1b[33m⚠️  Download cancelled.\x1b[0m\n');
+      rl.close();
+    }
+    
+  } catch (err) {
+    console.log('\n\x1b[31m❌ Interactive mode error:\x1b[0m', err.message || err);
+    rl.close();
+  }
+}
+
 function prepCli(packageJson) {
   const program = commander
     .addHelpCommand(true)
@@ -2095,6 +2368,8 @@ function prepCli(packageJson) {
     .option('--1', 'Highest quality (320kbps)', () => ({bitrate: '320k'}))
     .option('--2', 'High quality (256kbps)', () => ({bitrate: '256k'}))
     .option('--3', 'Medium quality (192kbps)', () => ({bitrate: '192k'}))
+    .option('-i, --interactive', 'interactive mode - guided walkthrough for non-technical users')
+    .option('--demo', 'demo mode - shows content info without downloading')
     .option('--4', 'Low quality (128kbps)', () => ({bitrate: '128k'}))
     .option('--5', 'Force overwrite existing files', () => ({force: true}))
     .option('--6', 'Skip saving cover art', () => ({cover: false}))
@@ -2351,7 +2626,7 @@ function prepCli(packageJson) {
       // eslint-disable-next-line no-shadow
       async function urify(urls) {
         urls.forEach(url => {
-          const parsed = FreyrCore.parseURI(url);
+          const parsed = MusicDownloaderCore.parseURI(url);
           const uri = parsed && parsed[args.url ? 'url' : 'uri'];
           if (args.tag) !uri ? output.write(`# invalid: ${url}\n`) : output.write(`# ${url}\n`);
           if (!uri) return;
@@ -2406,6 +2681,17 @@ async function main(argv) {
   let packageJson = JSON.parse((await fs.readFile(xpath.join(__dirname, 'package.json'))).toString());
 
   let {program} = prepCli(packageJson);
+
+  // Handle interactive mode before normal CLI parsing
+  if (argv.includes('--interactive') || argv.includes('-i')) {
+    await interactiveMode(packageJson, [], {
+      storefront: 'us',
+      bitrate: '320k',
+      cover: true,
+      saveLyrics: true,
+    });
+    return;
+  }
 
   if (!(argv.includes('-v') || argv.includes('--version'))) {
     const showBanner = !argv.includes('--no-logo');

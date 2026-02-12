@@ -1,1144 +1,363 @@
-<!-- markdownlint-disable MD001 MD007 MD023 MD033 MD041 MD051 -->
+# 🎵 Music Downloader
 
-<div align="center">
-  <a href="https://github.com/miraclx/freyr-js">
-    <img src="https://github.com/miraclx/freyr-js/raw/master/media/logo.gif" alt="FreyrJS - connoisseur of music">
-  </a>
+A powerful multi-platform music downloader that fetches metadata from Spotify, Apple Music, and Deezer, then downloads audio with full ID3v2.4 tags.
 
-  # Freyr
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
+![Node](https://img.shields.io/badge/Node.js-18%2B-green.svg)
 
-  <h4>
-    Download songs from Spotify, Apple Music and Deezer.
-  </h4>
+## ✨ Features
 
-  [![GitHub](https://img.shields.io/badge/by-miraclx-gray&plastic)](https://github.com/miraclx)
-  [![CodeFactor Grade](https://www.codefactor.io/repository/github/miraclx/freyr-js/badge/master)](https://www.codefactor.io/repository/github/miraclx/freyr-js/overview/master)
-  [![License](https://img.shields.io/github/license/miraclx/freyr-js)](https://github.com/miraclx/freyr-js)
-  [![CI checks](https://github.com/miraclx/freyr-js/actions/workflows/tests.yml/badge.svg)](https://github.com/miraclx/freyr-js/actions/workflows/tests.yml)
+- **Multi-Platform Support**: Download from Spotify, Apple Music, and Deezer
+- **Smart Link Resolution**: Automatically resolves Deezer shortlinks and service URLs
+- **Full Metadata**: Extracts and embeds complete track metadata (ID3v2.4)
+- **High Quality**: Configurable audio quality up to 320kbps
+- **Album Art**: Downloads high-resolution cover art
+- **Lyrics**: Saves synchronized lyrics (LRC/SRT formats)
+- **Interactive Mode**: User-friendly wizard for easy downloads
 
-  [![NPM Downloads](https://badgen.net/npm/dm/freyr)](https://www.npmjs.com/package/freyr)
-  [![Docker Cloud Pull Status](https://img.shields.io/docker/pulls/freyrcli/freyrjs.svg)](https://hub.docker.com/r/freyrcli/freyrjs)
-  [![NodeJS Version](https://img.shields.io/badge/node-%3E%3D%20v16-brightgreen)](https://github.com/miraclx/freyr-js)
-  [![Python Version](https://img.shields.io/badge/python-%3E%3D%20v3.2-blue)](https://github.com/miraclx/freyr-js)
+## 📋 Table of Contents
 
-  [![Total Lines Of Code](https://tokei.rs/b1/github/miraclx/freyr-js?category=code)](https://github.com/miraclx/freyr-js)
-  [![GitHub top language](https://img.shields.io/github/languages/top/miraclx/freyr-js)](https://github.com/miraclx/freyr-js)
-  [![GitHub repo size](https://img.shields.io/github/repo-size/miraclx/freyr-js)](https://github.com/miraclx/freyr-js)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Interactive Mode](#interactive-mode)
+- [Supported Services](#supported-services)
+- [Requirements](#requirements)
+- [Contributing](#contributing)
+- [License](#license)
 
-  <sub>Built with ❤︎ by
-  <a href="https://github.com/miraclx">Miraculous Owonubi</a>
+## 🚀 Installation
 
-</div>
+### Prerequisites
 
-## Demo
+- **Node.js**: Version 18 or higher
+- **Python**: Version 3.10+ (required for yt-dlp audio downloads)
+- **FFmpeg**: Required for audio encoding
 
-[![ASCII Demo](https://github.com/miraclx/freyr-js/raw/master/media/demo.gif)](https://asciinema.org/a/KH5xyBq9G8Wf5Dyvj6AfqXwYr?autoplay=1 "Click to view ASCII")
-
-## Overview
-
-### What freyr does
-
-Depending on the URLs you provide freyr, it will;
-
-1. Extract track metadata (`title`, `album`, `artist`, etc.) from the streaming service (Spotify if you provide a Spotify URL).
-2. Then, it queries sources (e.g. YouTube), classifies the results to find you the best sounding, most accurate audio and downloads that in the raw format.
-3. Next, it processes each track, encoding them in an [Apple AAC](https://en.wikipedia.org/wiki/Advanced_Audio_Coding) format (`.m4a` file extension) at a default bitrate of `320kbps`.
-4. Then, it embeds all the metadata and the album art into each track.
-5. And finally, it organizes all the files into a structured library ([example](https://miraclx.github.io/freyr-demo-library/)).
-
-### Metadata Availability
-
-Here's a list of the metadata that freyr can extract from each streaming service:
-
-|      Meta      | Spotify | Apple Music | Deezer |
-| :------------: | :-----: | :---------: | :----: |
-|    `Title`     |    ✔    |      ✔      |   ✔    |
-|    `Artist`    |    ✔    |      ✔      |   ✔    |
-|  `Featuring`   |    ✔    |      ✔      |   ✔    |
-|   `Composer`   |    ✗    |      ✔      |   ✔    |
-|    `Album`     |    ✔    |      ✔      |   ✔    |
-|    `Genre`     |    ✗    |      ✔      |   ✔    |
-| `Track Number` |    ✔    |      ✔      |   ✔    |
-| `Disk Number`  |    ✔    |      ✔      |   ✔    |
-| `Release Date` |    ✔    |      ✔      |   ✔    |
-|    `Rating`    |    ✔    |      ✔      |   ✔    |
-| `Album Artist` |    ✔    |      ✔      |   ✔    |
-|     `ISRC`     |    ✔    |      ✔      |   ✔    |
-|    `Label`     |    ✔    |      ✔      |   ✔    |
-|  `Copyright`   |    ✔    |      ✔      |   ✔    |
-|  `Cover Art`   |    ✔    |      ✔      |   ✔    |
-|    `Lyrics`    |   ¹     |      ✔      |   ✔    |
-| `Music Video`  |    ✗    |      ✔      |   ✔    |
-
-> ¹ Spotify lyrics require Musixmatch API integration
-
-## Support the project
-
-#### Donate via
-
-[![Patreon Donation](https://img.shields.io/badge/Patreon-donate-f96854?logo=patreon)](https://patreon.com/miraclx)
-[![Liberapay receiving](https://img.shields.io/badge/Liberapay-donate-f6c915?logo=liberapay)](https://liberapay.com/miraclx)
-[![Ko-fi Donation](https://img.shields.io/badge/-donate-ff5e5b?logo=Ko-fi&label=Ko-fi)](https://ko-fi.com/miraclx)
-
-#### Crypto
-
-- Via Coinbase (`BTC`, `ETH`, `USDC`, `LTC`, `DAI`, `BCH`):
-
-  - Support us with [`$5`](https://commerce.coinbase.com/checkout/96849d29-e051-4855-8bac-97f3f2e1a7a8) | [`$10`](https://commerce.coinbase.com/checkout/c8901c03-217a-475a-a764-98cdc6f561e9) | [`$15`](https://commerce.coinbase.com/checkout/e9be7d37-1ee7-4cc6-9daf-fde68c0697cc) | [`$20`](https://commerce.coinbase.com/checkout/4254e8a5-2071-445c-a0bd-c43a4e0d09b0)
-  - Donate [anything you want](https://commerce.coinbase.com/checkout/466d703a-fbd7-41c9-8366-9bdd3e240755)
-
-- Or Directly:
-
-  - [![BTC](https://img.shields.io/badge/-Bitcoin-5b5b5b?logo=bitcoin)](https://explorer.btc.com/btc/address/bc1qqe5y9kw7ewne8njdces8e4ajx5u7zhfftdvl33): `bc1qqe5y9kw7ewne8njdces8e4ajx5u7zhfftdvl33`
-  - [![XLM](https://img.shields.io/badge/-Stellar-5b5b5b?logo=stellar)](https://keybase.io/miraclx): `GB6GPPXXJTQ6EFYQQ4PFA4WEAT5G2DIDILOEDLYH76743UUVDDU4KOWY`
-  - [![ZEC](https://img.shields.io/badge/-Zcash-5b5b5b?logo=cash-app&logoColor=ecb127)](https://keybase.io/miraclx): `zs10awcwm4uwpjr3mxxdwe03fda0j0zn95s4hu3qxlvhfajjw8es98ftmpaava7zh735x9s22pan0l`
-
-## Installation
-
-### Manually
-
-<details>
-<summary id="requirements"> Requirements </summary>
-
-  <sub> _Hey there, you might want to consider a cleaner and straight-forward installation method, without having to manually setup the requirements. If so, checkout the [Docker installation method](#docker)_ </sub>
-
-  <details>
-  <summary>python >= v3.2</summary>
-
-  Download for your individual platforms here <https://www.python.org/downloads/>
-
-  Linux: _(check individual package managers)_
-
-  - Debian: `sudo apt-get install python3.6`
-  - Arch Linux: `sudo pacman -S python`
-  - Android (Termux): `apt install python`
-  - Alpine Linux: `sudo apk add python3`
-
-  </details>
-
-  <details>
-  <summary>nodejs >= v16.0.0</summary>
-
-  Download for your individual platforms here <https://nodejs.org/en/download/>
-
-  macOS + Linux: [nvm](https://github.com/nvm-sh/nvm) recommended.
-
-  ```bash
-  # install node with this nvm command
-  # freyr works with a minimum of v16
-  $ nvm install --lts
-  ```
-
-  - Android (Termux): `apt install nodejs`
-  - Alpine Linux: `sudo apk add nodejs`
-
-  </details>
-
-  <details>
-  <summary>AtomicParsley >= 20230114</summary>
-
-  First, download the latest release for your individual platforms here <https://github.com/miraclx/atomicparsley/releases/latest>
-
-  Then;
-
-  - Windows:
-    - unzip and place the `AtomicParsley.exe` in your `PATH`.
-    - or the `bins/windows` folder of this project directory. Create the folder(s) if they don't exist.
-  - Linux + macOS:
-    - unzip and place the `AtomicParsley` in your `PATH`.
-    - or the `bins/posix` folder of this project directory. Create the folder(s) if they don't exist.
-  - Alternatively:
-    - Debian: `sudo apt-get install atomicparsley`
-    - Arch Linux: `sudo pacman -S atomicparsley`
-    - Android (Termux): `apt install atomicparsley`
-    - Build from source: See [wez/AtomicParsley](https://github.com/miraclx/atomicparsley)
-
-  </details>
-
-  > _Please note that [YouTube Music](https://music.youtube.com/) must be available in your region for freyr to successfully work, this is because freyr sources raw audio from [YouTube Music](https://music.youtube.com/)._
-
-  ---
-</details>
-
-First start by ensuring all requirements listed above are satisfied. Thereafter, you can use either of these options to install freyr:
-
-- [NPM](https://github.com/npm/cli): `npm install -g freyr`
-- [Yarn](https://github.com/yarnpkg/yarn): `yarn global add freyr`
-
-- <details>
-  <summary>Or you can build from source</summary>
-
-  ```bash
-  git clone https://github.com/miraclx/freyr-js.git freyr
-  cd freyr
-  ```
-
-  | %                 | NPM           | Yarn           |
-  | ----------------- | ------------- | -------------- |
-  | pull dependencies | `npm install` | `yarn install` |
-  | install globally  | `npm link`    | `yarn link`    |
-
-  </details>
-
-### Docker
-
-For convenience, we provide [officially prebuilt images](https://hub.docker.com/r/freyrcli/freyrjs/tags?name=latest) (automated builds from this repository) so you can skip the setup and build process and get right into it.
-
-Image Size: [![Docker Image Size](https://img.shields.io/docker/image-size/freyrcli/freyrjs/latest?color=gray&label=%20&logo=docker)](https://hub.docker.com/r/freyrcli/freyrjs/tags?name=latest)
-
-#### Usage (docker)
+### Setup
 
 ```bash
-docker run -it --rm -v $PWD:/data freyrcli/freyrjs [options, arguments and queries...]
+# Clone the repository
+git clone https://github.com/thesenegalesehitch/music-downloader.git
+cd music-downloader
+
+# Install dependencies
+npm install
+
+# Install FFmpeg (macOS)
+brew install ffmpeg
+
+# Install FFmpeg (Linux)
+sudo apt install ffmpeg
+
+# Install FFmpeg (Windows)
+choco install ffmpeg
 ```
 
-You can also create a handy alias to skip remembering that whole line everytime
+## ⚡ Quick Start
+
+### Download a single track
 
 ```bash
-alias freyr='docker run -it --rm -v $PWD:/data freyrcli/freyrjs'
+# Spotify
+node cli.js "spotify:track:4cOdK2wGLETKBW3PvgPWqT"
+
+# Apple Music
+node cli.js "https://music.apple.com/us/song/song-name/id1234567890"
+
+# Deezer
+node cli.js "https://www.deezer.com/track/123456789"
 ```
 
-> The `-v $PWD:/data` part sets the working directory for freyr to the current working directory.
-> For example, you can use `-v ~/Music/freyr:/data` to set the work directory and consequently, default save location to `~/Music/freyr`.
->
-> Please ensure the folder on the host already exists, create it if not. Otherwise, docker autocreates the folder as root and that causes unpleasant `Permission Denied` issues when you run freyr.
-
-[See [Docker Development](#docker-development)]
-
-## Getting Started
-
-### Usage
-
-```text
-Usage: freyr [options] [query...]
-Usage: freyr [options] [subcommand]
-```
-
-[See [Service Support](#service-support)].
-
-#### Show freyr help and list subcommands
-
-`freyr --help`
-
-#### Get CLI Help
-
-*The `get` subcommand is implicit and default.
-
-```text
-Usage: freyr [options] get [options] [query...]
-Usage: freyr [options] [query...]
-```
-
-<details>
-<summary> <code>freyr get --help</code> </summary>
-
-<!-- editorconfig-checker-disable -->
-```console
-    ____
-   / __/_______  __  _______
-  / /_/ ___/ _ \/ / / / ___/
- / __/ /  /  __/ /_/ / /
-/_/ /_/   \___/\__, /_/
-              /____/ v0.10.3
-
-freyr - (c) Miraculous Owonubi <omiraculous@gmail.com>
-------------------------------------------------------
-Usage: freyr get [options] [query...]
-
-Download music tracks from queries
-
-Options:
-  -i, --input <FILE>           use URIs found in the specified FILE as queries (file size limit: 1 MiB)
-                               (each query on a new line, use '#' for comments, whitespaces ignored)
-                               (example: `-i queue.txt`)
-  -b, --bitrate <N>            set audio quality / bitrate for audio encoding
-                               (valid: 96,128,160,192,256,320) (default: "320k")
-  -n, --chunks <N>             number of concurrent chunk streams with which to download (default: 7)
-  -r, --retries <N>            set number of retries for each chunk before giving up
-                               (`infinite` for infinite) (default: 10)
-  -t, --meta-retries <N>       set number of retries for collating track feeds (`infinite` for infinite) (default: 5)
-  -d, --directory <DIR>        save tracks to DIR/..
-  -D, --check-dir <DIR>        check if tracks already exist in another DIR (repeatable, optionally comma-separated)
-                               (useful if you maintain multiple libraries)
-                               (example: `-D dir1 -D dir2 -D dir3,dir4`)
-  -c, --cover <NAME>           custom name for the cover art, excluding the extension (default: "cover")
-  --cover-size <SIZE>          preferred cover art dimensions
-                               (format: <width>x<height> or <size> as <size>x<size>) (default: "640x640")
-  -C, --no-cover               skip saving a cover art
-  -S, --sources <SERVICE>      specify a preferred audio source or a `,`-separated preference order
-                               (valid: youtube,yt_music) (prefix with `!` to exclude) (default: "yt_music")
-  -l, --filter <MATCH>         filter matches off patterns (repeatable and optionally `,`-separated)
-                               (value omission implies `true` if applicable)
-                               (format: <key=value>) (example: title="when we all fall asleep*",type=album)
-                               See `freyr help filter` for more information
-  -L, --filter-case            enable case sensitivity for glob matches on the filters
-  -z, --concurrency <SPEC>     key-value concurrency pairs (repeatable and optionally `,`-separated)
-                               (format: <[key=]value>) (key omission implies track concurrency)
-                               (valid(key): queries,tracks,trackStage,downloader,encoder,embedder)
-                               (example: `queries=2,downloader=4` processes 2 CLI queries,
-                               downloads at most 4 tracks concurrently)
-  --gapless                    set the gapless playback flag for all tracks
-  -f, --force                  force overwrite of existing files
-  -o, --config <FILE>          specify alternative configuration file
-  -p, --playlist <FILENAME>    create playlist for all successfully collated tracks
-  -P, --no-playlist            skip creating a playlist file for collections
-  --playlist-dir <DIR>         directory to save playlist file to, if any, (default: tracks base directory)
-  --playlist-noappend          do not append to the playlist file, if any exists
-  --playlist-noescape          do not escape invalid characters within playlist entries
-  --playlist-namespace <SPEC>  namespace to prefix on each track entry, relative to tracks base directory
-                               useful for, but not limited to custom (file:// or http://) entries
-                               (example, you can prefix with a HTTP domain path: `http://webpage.com/music`)
-  --playlist-force-append      force append collection tracks to the playlist file
-  -s, --storefront <COUNTRY>   country storefront code (example: us,uk,ru)
-  -T, --no-tree                don't organise tracks in directory structure `[DIR/]<ARTIST>/<ALBUM>/<TRACK>`
-  --cache-dir <DIR>            specify alternative cache directory
-                               `<tmp>` for tempdir, `<cache>` for system cache
-  --rm-cache [RM]              remove original downloaded files in cache directory (default: false)
-  -m, --mem-cache <SIZE>       max size of bytes to be cached in-memory for each download chunk
-  --no-mem-cache               disable in-memory chunk caching (restricts to sequential download)
-  --timeout <N>                network inactivity timeout (ms) (default: 10000)
-  --no-auth                    skip authentication procedure
-  --no-browser                 disable auto-launching of user browser
-  --no-net-check               disable internet connection check
-  --no-bar                     disable the progress bar
-  --atomic-parsley <PATH>      explicit path to the atomic-parsley binary
-  --no-stats                   don't show the stats on completion
-  --pulsate-bar                show a pulsating bar
-  --single-bar                 show a single bar for the download, hide chunk-view
-                               (default when number of chunks/segments exceed printable space)
-  -h, --help                   show this help information
-
-Environment Variables:
-  SHOW_DEBUG_STACK             show extended debug information
-  ATOMIC_PARSLEY_PATH          custom AtomicParsley path, alternatively use `--atomic-parsley`
-
-Info:
-  When downloading playlists, the tracks are downloaded individually into
-  their respective folders. However, a m3u8 playlist file is generated in
-  the base directory with the name of the playlist that lists the tracks
-```
-<!-- editorconfig-checker-enable -->
-
-</details>
-
-#### Download a Spotify track
-
-<details>
-<summary> <code>freyr spotify:track:5FNS5Vj69AhRGJWjhrAd01</code> </summary>
-
-<!-- editorconfig-checker-disable -->
-```console
-    ____
-   / __/_______  __  _______
-  / /_/ ___/ _ \/ / / / ___/
- / __/ /  /  __/ /_/ / /
-/_/ /_/   \___/\__, /_/
-              /____/ v0.10.3
-
-freyr - (c) Miraculous Owonubi <omiraculous@gmail.com>
--------------------------------------------------------------
-Checking directory permissions...[done]
-[spotify:track:5FNS5Vj69AhRGJWjhrAd01]
- [•] Identifying service...[Spotify]
- [•] Checking authentication...[unauthenticated]
- [Spotify Login]
-  [•] Logging in...[done]
- Detected [track]
- Obtaining track metadata...[done]
-  ➤ Title: Slow Dance
-  ➤ Album: Slow Dance
-  ➤ Artist: AJ Mitchell
-  ➤ Year: 2019
-  ➤ Playtime: 02:58
- [•] Collating...
- • [01 Slow Dance]
-    | ➤ Collating sources...
-    |  ➤ [•] YouTube Music...[success, found 1 source]
-    | ➤ Awaiting audiofeeds...[done]
-    | [✓] Got album art
-    | [✓] Got raw track file
-    | [•] Post Processing...
- [•] Download Complete
- [•] Embedding Metadata...
-  • [✓] 01 Slow Dance
-[•] Collation Complete
-============ Stats ============
- [•] Runtime: [31.7s]
- [•] Total queries: [01]
- [•] Total tracks: [01]
-     » Skipped: [00]
-     ✓ Passed:  [01]
-     ✕ Failed:  [00]
- [•] Output directory: [.]
- [•] Cover Art: cover.png (640x640)
- [•] Total Output size: 7.30 MB
- [•] Total Network Usage: 3.12 MB
-     ♫ Media: 3.02 MB
-     ➤ Album Art: 106.76 KB
- [•] Output bitrate: 320k
-===============================
-```
-<!-- editorconfig-checker-enable -->
-
-</details>
-
-#### Download an Apple Music album
-
-<details>
-<summary> <code> freyr https://music.apple.com/us/album/im-sorry-im-not-sorry-ep/1491795443 </code> </summary>
-
-<!-- editorconfig-checker-disable -->
-```console
-    ____
-   / __/_______  __  _______
-  / /_/ ___/ _ \/ / / / ___/
- / __/ /  /  __/ /_/ / /
-/_/ /_/   \___/\__, /_/
-              /____/ v0.10.3
-
-freyr - (c) Miraculous Owonubi <omiraculous@gmail.com>
--------------------------------------------------------------
-Checking directory permissions...[done]
-[https://music.apple.com/us/album/im-sorry-im-not-sorry-ep/1491795443]
- [•] Identifying service...[Apple Music]
- [•] Checking authentication...[authenticated]
- Detected [album]
- Obtaining album metadata...[done]
-  ➤ Album Name: I'm Sorry, I'm Not Sorry
-  ➤ Artist: Sody
-  ➤ Tracks: 4
-  ➤ Type: Album
-  ➤ Year: 2020
-  ➤ Genres: Singer/Songwriter, Music
- [•] Collating [I'm Sorry, I'm Not Sorry]...
-  [•] Inquiring tracks...[done]
-   • [01 What We Had]
-      | ➤ Collating sources...
-      |  ➤ [•] YouTube Music...[success, found 4 sources]
-      | ➤ Awaiting audiofeeds...[done]
-      | [✓] Got album art
-      | [✓] Got raw track file
-      | [•] Post Processing...
-   • [02 Reason To Stay]
-      | ➤ Collating sources...
-      |  ➤ [•] YouTube Music...[success, found 6 sources]
-      | ➤ Awaiting audiofeeds...[done]
-      | [✓] Got album art
-      | [✓] Got raw track file
-      | [•] Post Processing...
-   • [03 Nothing Ever Changes]
-      | ➤ Collating sources...
-      |  ➤ [•] YouTube Music...[success, found 4 sources]
-      | ➤ Awaiting audiofeeds...[done]
-      | [✓] Got album art
-      | [✓] Got raw track file
-      | [•] Post Processing...
-   • [04 Love's a Waste]
-      | ➤ Collating sources...
-      |  ➤ [•] YouTube Music...[success, found 4 sources]
-      | ➤ Awaiting audiofeeds...[done]
-      | [✓] Got album art
-      | [✓] Got raw track file
-      | [•] Post Processing...
- [•] Download Complete
- [•] Embedding Metadata...
-  • [✓] 01 What We Had
-  • [✓] 02 Reason To Stay
-  • [✓] 03 Nothing Ever Changes
-  • [✓] 04 Love's a Waste
-[•] Collation Complete
-============ Stats ============
- [•] Runtime: [2m 2.3s]
- [•] Total queries: [01]
- [•] Total tracks: [04]
-     » Skipped: [00]
-     ✓ Passed:  [04]
-     ✕ Failed:  [00]
- [•] Output directory: [.]
- [•] Cover Art: cover.png (640x640)
- [•] Total Output size: 29.79 MB
- [•] Total Network Usage: 13.35 MB
-     ♫ Media: 12.73 MB
-     ➤ Album Art: 619.43 KB
- [•] Output bitrate: 320k
-===============================
-```
-<!-- editorconfig-checker-enable -->
-
-</details>
-
-#### Download a Deezer Artist
-
-<details>
-<summary> <code> freyr https://www.deezer.com/us/artist/14808825 </code> </summary>
-
-<!-- editorconfig-checker-disable -->
-```console
-    ____
-   / __/_______  __  _______
-  / /_/ ___/ _ \/ / / / ___/
- / __/ /  /  __/ /_/ / /
-/_/ /_/   \___/\__, /_/
-              /____/ v0.10.3
-
-freyr - (c) Miraculous Owonubi <omiraculous@gmail.com>
--------------------------------------------------------------
-Checking directory permissions...[done]
-[https://www.deezer.com/us/artist/14808825]
- [•] Identifying service...[Deezer]
- [•] Checking authentication...[authenticated]
- Detected [artist]
- Obtaining artist metadata...[done]
-  ➤ Artist: Mazie
-  ➤ Followers: 6
-  > Gathering collections...[done]
- [•] Collating...
-  (01) [i think i wanna be alone] (single)
-   [•] Inquiring tracks...[done]
-    • [01 i think i wanna be alone]
-       | ➤ Collating sources...
-       |  ➤ [•] YouTube Music...[success, found 2 sources]
-       | ➤ Awaiting audiofeeds...[done]
-       | [✓] Got album art
-       | [✓] Got raw track file
-       | [•] Post Processing...
-  (02) [no friends] (single)
-   [•] Inquiring tracks...[done]
-    • [01 no friends]
-       | ➤ Collating sources...
-       |  ➤ [•] YouTube Music...[success, found 4 sources]
-       | ➤ Awaiting audiofeeds...[done]
-       | [✓] Got album art
-       | [✓] Got raw track file
-       | [•] Post Processing...
- [•] Download Complete
- [•] Embedding Metadata...
-  • [✓] 01 i think i wanna be alone
-  • [✓] 01 no friends
-[•] Collation Complete
-============ Stats ============
- [•] Runtime: [54.6s]
- [•] Total queries: [01]
- [•] Total tracks: [02]
-     » Skipped: [00]
-     ✓ Passed:  [02]
-     ✕ Failed:  [00]
- [•] Output directory: [.]
- [•] Cover Art: cover.png (640x640)
- [•] Total Output size: 8.47 MB
- [•] Total Network Usage: 3.66 MB
-     ♫ Media: 3.50 MB
-     ➤ Album Art: 157.16 KB
- [•] Output bitrate: 320k
-===============================
-```
-<!-- editorconfig-checker-enable -->
-
-</details>
-
-#### Batch downloads
-
-##### via Arguments
-
-Queries can be collated to be processed at once.
+### Download an album
 
 ```bash
-freyr query1 query2 ... queryN
+node cli.js "https://open.spotify.com/album/4aawyAB9vmqN3uQ7Q3wJ2a"
+node cli.js "https://music.apple.com/us/album/album-name/id1234567890"
+node cli.js "https://www.deezer.com/album/123456789"
 ```
 
-##### via Batch File
-
-Queries can be batched into a file and loaded all at once with the `-i, --input <FILE>` flag.
-Queries should be on separate lines.
-
-Lines starting with a `#` are treated as comments and ignored. comments can also be inlined with everything following the `#` character ignored.
-
-```text
-# ./queue.txt
-
-# Hailee Steinfeld
-https://open.spotify.com/track/5Gu0PDLN4YJeW75PpBSg9p # (track) Let Me Go
-https://open.spotify.com/track/7GCVboEDzfL3NKp1NrAgHR # (track) Wrong Direction
-
-# (album) Rina Sawayama
-https://open.spotify.com/album/3stadz88XVpHcXnVYMHc4J
-```
+### Download a playlist
 
 ```bash
-freyr -i ./queue.txt
+node cli.js "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
 ```
 
-Use the [`--help`](#get-cli-help) flag to see full usage documentation.
+## ⚙️ Configuration
 
-#### URIs
-
-Services can be queried with short URIs containing the type and ID for the resource.
-
-<table>
-  <thead>
-    <tr>
-      <th> identifier </th>
-      <th> </th>
-      <th> type </th>
-      <th> </th>
-      <th> id </th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td rowspan=4>
-        <a href="#service-support"> URI Short Tags </a>
-      </td>
-      <td rowspan=4> : </td>
-      <td> track </td>
-      <td rowspan=4> : </td>
-      <td rowspan=4> ~ </td>
-    </tr>
-    <tr>
-      <td> album </td>
-    </tr>
-    <tr>
-      <td> artist </td>
-    </tr>
-    <tr>
-      <td> playlist </td>
-    </tr>
-  </tbody>
-</table>
-
-Use the `urify` subcommand to parse betweeen URIs and its equivalent URL representation, and vice-versa.
-Creating freyr-compatible queue output.
-
-<details>
-<summary> <code> freyr urify https://open.spotify.com/album/2D23kwwoy2JpZVuJwzE42B --no-header --no-logo --no-tag </code> </summary>
-
-```text
-spotify:album:2D23kwwoy2JpZVuJwzE42B
-[+] Urify complete
-```
-
-</details>
-
-<details>
-<summary> <code> freyr urify -i queue_of_urls.txt -o queue_of_uris.txt --no-header --no-logo </code> </summary>
-
-```text
-[+] Urify complete
-Successfully written to [queue_of_uris.txt]
-```
-
-</details>
-
-[Examples](#ssue)
-
-### Features
-
-- Multi-service support [See [Service Support](#service-support)]
-- Playlist generation (per playlist (default) / per query (optional))
-- Batch download from queue file
-- Simultaneous chunked downloads (powered by [[libxget-js](https://github.com/miraclx/libxget-js)])
-- Efficient concurrency
-- Bitrate specification (valid: 96, 128, 160, 192, 256, 320)
-- Album art embedding & export
-- Proper track organisation i.e `FOLDER/<Artist Name>/<Album Name>/<Track Name>` ([example](https://miraclx.github.io/freyr-demo-library/))
-- Resilient visual progressbar per track download (powered by [[xprogress](https://github.com/miraclx/xprogress)])
-- Stats on runtime completion
-  - runtime duration
-  - number of successfully processed tracks
-  - output directory
-  - cover art name
-  - total output size
-  - total network usage
-  - network usage for media
-  - network usage for album art
-  - output bitrate
-
-### Configuration
-
-<details>
-<summary>User / Session specific configuration</summary>
-
-Persistent configuration such as authentication keys and their validity period are stored within a session specific configuration file.
-
-This configuration file resides within the user config directory per-platform.
-
-- `$HOME/.config/FreyrCLI/d3fault.x4p` for Linux.
-- `$HOME/Library/Preferences/FreyrCLI/d3fault.x4p` for macOS.
-
-</details>
-
-<details>
-<summary id='project-specific-configuration'>Project specific configuration</summary>
-
-All defaults are defined in the [conf.json](https://github.com/miraclx/freyr-js/blob/master/conf.json) file at the root of the project. This file should be of `JSON` format and is to be structured as such.
-
-Do not edit this file directly, instead run freyr once and edit the user specific configuration (see above).
-
-- `server`: \<object\> The server URL configuration same as on an individual services' callback option.
-  - `hostname`: \<string\>
-  - `port`: \<number\>
-  - `useHttps`: \<boolean\>
-- `concurrency`: \<object\>
-  - `queries`: \<number\> The number of queries to be processed concurrently.
-  - `tracks`: \<number\> The number of tracks to be actively processed in parallel.
-  - `trackStage`: \<number\> The number of tracks to concurrently preprocess before being pushed to the main trackQueue.
-  - `downloader`: \<number\> The number of tracks to be concurrently downloaded in parallel.
-  - `encoder`: \<number\> The total number of tracks to be concurrently undergo encoding.
-  - `embedder`: \<number\> The total number of tracks to be concurrently embedded in parallel.
-- `opts`: \<object\>
-  - `netCheck`: \<boolean\> Whether or not to check network access at program start.
-  - `attemptAuth`: \<boolean\> Whether or not to process authentication.
-  - `autoOpenBrowser`: \<boolean\> Whether or not to automatically open user browser.
-- `filters`: \<[FilterRules](#filterrules)[]\> Filter rules each track must match to be downloaded.
-- `dirs`: \<object\>
-  - `output`: \<string\> Default download directory. Default: `"."`
-  - `check`: \<string[]\> List of directories to check for existing files. Default: `["."]`
-  - `cache`: \<object\>
-    - `path`: \<string\> Path to download pre-processed audio to (`"<tmp>"` for tempdir, `"<cache>"` for system cache). Default: `"<cache>"`
-    - `keep`: \<string\> Whether or not to keep the pre-processed audio. Default: `"true"`
-- `playlist`: \<object\>
-  - `always`: \<boolean\> Always create playlists for collections and non-collections alike.
-  - `append`: \<boolean\> Append non-collection tracks onto the playlist file.
-  - `escape`: \<boolean\> Escape `#` characters within playlist entries paths.
-  - `forceAppend`: \<boolean\> Force append collection tracks.
-  - `dir`: \<string\> Default playlist save directory.
-  - `namespace`: \<string\> Prefix namespace to prepend to track paths.
-- `image`: \<object|number|string\> An object with fields pertaining to an image's properties or a number defining its size. (\<width\>x\<height\> or \<size\> as \<size\>x\<size\>)
-  - `width`: \<number|string\>
-  - `height`: \<number|string\>
-- `downloader`: \<object\>
-  - `memCache`: \<boolean\> Whether or not to use in-memory caching for download chunks.
-  - `cacheSize`: \<number\> Maximum size of bytes to be cached per download.
-  - `sources`: \<array\> Service download sources order.
-    - Freyr would check these download sources in the order which they are defined. Failure to get a query from a source would try the next available source. You can exclude a source by prefixing it with a `!` character.
-    - supported: `youtube`, `yt_music`
-    - default: `[ "yt_music", "youtube" ]`
-- `services`: \<[ServiceConfiguration](#service-configuration): object\>
-
-<details>
-<summary>Example JSON</summary>
+Create or edit `conf.json` to customize behavior:
 
 ```json
 {
-  "server": {
-    "hostname": "localhost",
-    "port": 36346,
-    "useHttps": false
+  "dirs": {
+    "output": "./downloads"
   },
-  "image": {
-    "width": 640,
-    "height": 640
+  "audio": {
+    "bitrate": 320
   },
+  "cover_art": {
+    "max_size": 1280,
+    "save_cover": true
+  },
+  "lyrics": {
+    "save_lrc": true,
+    "save_srt": true
+  },
+  "metadata": {
+    "id3_version": "2.4"
+  }
+}
+```
+
+### Configuration Options
+
+| Section | Option | Description | Default |
+|---------|--------|-------------|---------|
+| `dirs.output` | string | Download directory | `./downloads` |
+| `audio.bitrate` | number | Audio bitrate (kbps) | 320 |
+| `cover_art.max_size` | number | Max cover art dimension | 1280 |
+| `lyrics.enabled` | boolean | Enable lyrics fetching | true |
+| `metadata.id3_version` | string | ID3 tag version | `2.4` |
+
+## 📖 Usage
+
+### Command Line Options
+
+```bash
+# Show help
+node cli.js --help
+
+# Hide startup banner
+node cli.js --no-logo --no-header "URL"
+
+# Quick quality selection
+node cli.js --1 "URL"   # 320kbps
+node cli.js --2 "URL"   # 256kbps
+node cli.js --3 "URL"   # 128kbps
+
+# Interactive mode
+node cli.js --interactive
+node cli.js -i
+```
+
+### Subcommands
+
+```bash
+# Get/download music (default)
+node cli.js get "spotify:track:ID"
+
+# Convert URLs to URIs
+node cli.js urify "https://music.apple.com/..."
+
+# Preview filter patterns
+node cli.js filter "pattern..."
+```
+
+## 🎮 Interactive Mode
+
+Start the wizard for guided downloads:
+
+```bash
+node cli.js --interactive
+```
+
+Follow the prompts:
+1. Paste your music link
+2. Preview content (name, artist, tracks)
+3. Choose download directory
+4. Select audio quality
+5. Confirm and download
+
+### Supported Link Formats
+
+| Service | Track | Album | Playlist |
+|---------|-------|-------|----------|
+| Spotify | ✅ | ✅ | ✅ |
+| Apple Music | ✅ | ✅ | ✅ |
+| Deezer | ✅ | ✅ | ✅ |
+| Deezer Shortlinks | ✅ | ✅ | ✅ |
+
+## 🎧 Supported Services
+
+### Spotify
+- Full track, album, playlist support
+- OAuth authentication required
+- Rich metadata extraction
+
+### Apple Music
+- Full catalog access
+- Developer token authentication
+- High-quality metadata
+
+### Deezer
+- Direct API access (no auth for basic features)
+- Shortlink support
+- Lyrics, BPM, and gain data
+
+## 📦 Requirements
+
+### System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| Node.js | 18.0.0 | 20.0.0+ |
+| Python | 3.10.0 | 3.11.0+ |
+| RAM | 512 MB | 1 GB |
+| Disk | 1 GB | 5 GB |
+
+### Required Tools
+
+- **FFmpeg** - Audio encoding
+- **yt-dlp** - YouTube audio extraction (installed via npm)
+
+### Python 3.10+ Setup
+
+If your system Python is below 3.10:
+
+```bash
+# macOS with Homebrew
+brew install python@3.11
+echo 'export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"' >> ~/.zshrc
+
+# Linux (Ubuntu/Debian)
+sudo apt install python3.11 python3.11-venv
+
+# Windows
+winget install Python.Python.3.11
+```
+
+## 🔧 API Credentials
+
+### Spotify Setup
+
+1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Create a new application
+3. Copy Client ID and Client Secret
+4. Add to `conf.json`:
+
+```json
+{
   "services": {
     "spotify": {
-      "clientId": "CLIENT_ID",
-      "clientSecret": "CLIENT_SECRET",
-      "refreshToken": "OPTIONAL_REFRESH_TOKEN"
-    },
-    "apple_music": {
-      "storefront": "us"
-    },
-    "deezer": {
-      "retries": 5
+      "clientId": "YOUR_CLIENT_ID",
+      "clientSecret": "YOUR_CLIENT_SECRET"
     }
   }
 }
 ```
 
-</details>
+### Apple Music Setup
 
-</details>
+1. Sign up for [Apple Developer Program](https://developer.apple.com/programs/)
+2. Create a MusicKit token
+3. Add to `conf.json`:
 
-### Service Configuration
-
-The [conf.json](https://github.com/miraclx/freyr-js/blob/master/conf.json) file already includes some API tokens for service authentication and should work right out of the box. [See [Project specific configuration](#project-specific-configuration)]
-
-<details>
-<summary>Spotify</summary>
-
-- `spotify`: \<object\>
-  - `clientId`: \<string\>
-  - `clientSecret`: \<string\>
-  - `refreshToken`: \<string\>
-
-Spotify requires a `clientId` and a `clientSecret` that can be gotten from their developer dashboard.
-
-If you wish to create and use custom keys, [See [Spotify API Authorization](#spotify-api-authorization)].
-
-An optional `refreshToken` option can be defined which can be used to authenticate a session without necessarily requesting explicit permissions. The `refreshToken` is already bound to a pre-authenticated account.
-
-An invalid `refreshToken`, when specified, would fallback to requesting account access which in-turn would request re-authentication of the users' account.
-
-#### Spotify API Authorization
-
-1. Sign in to the [Spotify Dashboard](https://developer.spotify.com/dashboard/)
-2. Click `CREATE A CLIENT ID` and create an app
-3. Now click `Edit Settings`
-4. Add `http://localhost:36346/callback` to the Redirect URIs
-5. Include the `clientId` and the `clientSecret` from the dashboard in the `spotify` object that is a property of the `services` object of the `conf.json` file. [See [Configuration](#configuration)]
-6. You are now ready to authenticate with Spotify!
-
-</details>
-
-<details>
-<summary>Apple Music</summary>
-
-- `apple_music`: \<object\>
-  - `storefront`: \<string\>
-  - `developerToken`: \<string\>
-
-Freyr would automatically fetch a developer token from the Apple Music site, which should suffice for all intents and purposes. But if you prefer to use a custom developer token, please refer to the Apple Music documentation on this topic.
-
-The `storefront` option defines the default storefront to be used in the absence of a specification.
-
-#### Apple Music API Authorization
-
-[See [Apple Music API: Getting Keys and Creating Tokens](https://developer.apple.com/documentation/applemusicapi/getting_keys_and_creating_tokens)]
-
-After successfully acquiring the developer token, include the `developerToken` to the `apple_music` object that's a property of the `services` object in the `conf.json` file. [See [Configuration](#configuration)]
-
-An expired developer token in the `conf.json` would make freyr fallback to fetching it from the Apple Music site.
-</details>
-
-<details>
-<summary>Deezer</summary>
-
-- `deezer`: \<object\>
-  - `retries`: \<number\>
-
-Authentication unrequired. API is freely accessible.
-
-Because of the 50 requests / 5 seconds limit enforced on an IP-basis for Deezer's API [See [#32](https://github.com/miraclx/freyr-js/issues/32)],
-occasionally a `Quota limit exceeded` error would be thrown by the API server.
-
-To combat this, freyr employs request batching, managed delays and finally, retries when things go awry.
-
-You can configure how many retries you want freyr to make before accepting failure.
-
-</details>
-
-### Return Codes
-
-- 0: OK
-- 1: Invalid query
-- 2: Invalid flag value
-- 3: Invalid / Inexistent configuration file
-- 4: Network error
-- 5: Error with working directory
-- 6: Failed to initialize a freyr instance
-- 7: An error occurred checking dependency paths
-
-### FilterRules
-
-Filter rules each to be matched against the tracks involved in any operation.
-
-Used as values to the `-l, --filter` flag or as key-value pairs in the `filters` array of the [configuration file](#project-specific-configuration).
-
-| key            |     syntax    |   description   | examples |
-| -------------- | :-----------: | --------------- | -------- |
-| `id`           |      glob     | Resource ID     | `id=1497949287`, `id=*149` |
-| `uri`          |      glob     | Resource URI    | `uri="*:+(track\|album):*"` |
-| `title`        |      glob     | Track title     | `title="all*good girls*hell"` |
-| `album`        |      glob     | Track album     | `album="when we*fall*do we go*"` |
-| `artist`       |      glob     | Match an artist | `artist="Billie*"` |   |
-| `trackn`       | [Numeric Range](#ranges) | Match a track number range | `trackn="2..5"`, `trackn="4..=5"` |
-| `type`         |     Static    | `album` \| `single` \| `compilation` | `type=single` |
-| `duration`     |  [Timed Range](#timed-ranges)  | Track duration | `duration="3s.."`, `duration="2:30..3:00"`, `duration="..=3m"` |
-| `explicit`     |     Static    | `true` \| `false` \| `inoffensive` | `explicit=true`, `explicit=inoffensive` |
-| `album_artist` |      glob     | Album artist | `album_artist="Billie Eilish"` |
-| `isrc`         |      glob     | Track ISRC   | `isrc=USUM71900766` |
-| `label`        |      glob     | Record label | `label="*Interscope*"` |
-| `year`         | [Numeric Range](#ranges) | Release year | `year=2019`, `year=2018..2020` |
-| `diskn`        | [Numeric Range](#ranges) | Disk number  | `diskn=1` |
-| `ntracks`      | [Numeric Range](#ranges) | Number of tracks in the album | `ntracks=10..=14` |
-
-#### Ranges
-
-Syntax: `[a][..][[=]b]`
-
-| Spec    | Match            | Representation |
-| ------- | ---------------- | -------------- |
-| `..`    | `-∞ ... ∞`       | `x`            |
-| `3..7`  | `3, 4, 5, 6`     | `7 > x ≥ 3`    |
-| `3..=7` | `3, 4, 5, 6, 7`  | `7 ≥ x ≥ 3`    |
-| `..3`   | `-∞ ... 0, 1, 2` | `3 > x`        |
-| `..=3`  | `-∞ ... 1, 2, 3` | `3 ≥ x`        |
-| `5..`   | `5, 6, 7 ... ∞`  | `x ≥ 5`        |
-
-#### Timed Ranges
-
-Examples: `duration=60s..=3:40`
-
-| Metric  | Values                   |
-| ------- | ------------------------ |
-| Seconds | `30`, `30s`, `00:30`     |
-| Minutes | `120`, `120s`, `02:00`   |
-| Hours   | `5400`, `5400s`, `01:30` |
-
-#### Previewing filter representation
-
-To preview filter rules specification, use the `filter` subcommand.
-
-<details>
-<summary> <code> freyr filter title="all*good girls*hell",artist="*eilish",trackn="4..=5" --no-header --no-logo </code> </summary>
-
-```text
-[
-  {
-    "query": "*",
-    "filters": {
-      "title": "all*good girls*hell",
-      "artist": "*eilish",
-      "trackn": "4..=5"
+```json
+{
+  "services": {
+    "apple_music": {
+      "developerToken": "YOUR_TOKEN"
     }
   }
-]
+}
 ```
 
-</details>
+## 📁 Output Structure
 
-## Service Support
+```
+downloads/
+├── Artist Name/
+│   ├── Album Name/
+│   │   ├── 01 Track Name.m4a
+│   │   ├── 02 Track Name.m4a
+│   │   └── ...
+│   └── Artist Name - Single Name.m4a
+└── Artist Name - Track Name.m4a
+```
 
-| Service | Track | Album | Artist | Playlist | [URI Short Tags](#uris) |
-| :-----: | :---: | :---: | :----: | :------: | :------------: |
-| [Spotify](https://github.com/miraclx/freyr-js/blob/master/src/services/spotify.js) |   ✔   |   ✔   |    ✔   |     ✔    | `spotify:` |
-| [Apple Music](https://github.com/miraclx/freyr-js/blob/master/src/services/apple_music.js) |   ✔   |   ✔   |    ✔   |     ✔    | `apple_music:` |
-| [Deezer](https://github.com/miraclx/freyr-js/blob/master/src/services/deezer.js) |   ✔   |   ✔   |    ✔   |     ✔    | `deezer:` |
-| YouTube Music (See [#6](https://github.com/miraclx/freyr-js/issues/6)) |   ✗   |   ✗   |    ✗   |     ✗    | ✗ |
-| Tidal (See [#33](https://github.com/miraclx/freyr-js/issues/33)) |   ✗   |   ✗   |    ✗   |     ✗    | ✗ |
+### Filename Template
 
-<details>
-<summary id="ssue"> <strong> Short Service URI Examples </strong> </summary>
-  <table>
-    <thead>
-      <tr>
-        <th> Service </th>
-        <th> Resource Type </th>
-        <th colspan=2> URIS </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td rowspan=8> Spotify </td>
-        <td rowspan=2> track </td>
-        <td> URL </td>
-        <td> <a href="https://open.spotify.com/track/127QTOFJsJQp5LbJbu3A1y"> https://open.spotify.com/track/127QTOFJsJQp5LbJbu3A1y </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> spotify:track:127QTOFJsJQp5LbJbu3A1y </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> album </td>
-        <td> URL </td>
-        <td> <a href="https://open.spotify.com/album/623PL2MBg50Br5dLXC9E9e"> https://open.spotify.com/album/623PL2MBg50Br5dLXC9E9e </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> spotify:album:623PL2MBg50Br5dLXC9E9e </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> artist </td>
-        <td> URL </td>
-        <td> <a href="https://open.spotify.com/artist/6M2wZ9GZgrQXHCFfjv46we"> https://open.spotify.com/artist/6M2wZ9GZgrQXHCFfjv46we </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> spotify:artist:6M2wZ9GZgrQXHCFfjv46we </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> playlist </td>
-        <td> URL </td>
-        <td> <a href="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"> https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> spotify:playlist:37i9dQZF1DXcBWIGoYBM5M </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=10> Apple Music </td>
-        <td rowspan=4> track </td>
-        <td> URL </td>
-        <td> <a href="https://music.apple.com/us/album/say-so-feat-nicki-minaj/1510821672?i=1510821685"> https://music.apple.com/us/album/say-so-feat-nicki-minaj/1510821672?i=1510821685 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> apple_music:track:1510821685 </code> </td>
-      </tr>
-      <tr>
-        <td> URL </td>
-        <td> <a href="https://music.apple.com/us/song/1510821685"> https://music.apple.com/us/song/1510821685 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> apple_music:track:1510821685 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> album </td>
-        <td> URL </td>
-        <td> <a href="https://music.apple.com/us/album/birds-of-prey-the-album/1493581254"> https://music.apple.com/us/album/birds-of-prey-the-album/1493581254 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> apple_music:album:1493581254 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> artist </td>
-        <td> URL </td>
-        <td> <a href="https://music.apple.com/us/artist/412778295"> https://music.apple.com/us/artist/412778295 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> apple_music:artist:412778295 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> playlist </td>
-        <td> URL </td>
-        <td> <a href="https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"> https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> apple_music:playlist:pl.f4d106fed2bd41149aaacabb233eb5eb </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=8> Deezer </td>
-        <td rowspan=2> track </td>
-        <td> URL </td>
-        <td> <a href="https://www.deezer.com/en/track/642674232"> https://www.deezer.com/en/track/642674232 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> deezer:track:642674232 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> album </td>
-        <td> URL </td>
-        <td> <a href="https://www.deezer.com/en/album/99687992"> https://www.deezer.com/en/album/99687992 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> deezer:album:99687992 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> artist </td>
-        <td> URL </td>
-        <td> <a href="https://www.deezer.com/en/artist/5340439"> https://www.deezer.com/en/artist/5340439 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> deezer:artist:5340439 </code> </td>
-      </tr>
-      <tr>
-        <td rowspan=2> playlist </td>
-        <td> URL </td>
-        <td> <a href="https://www.deezer.com/en/playlist/1963962142"> https://www.deezer.com/en/playlist/1963962142 </a> </td>
-      </tr>
-      <tr>
-        <td> URI </td>
-        <td> <code> deezer:playlist:1963962142 </code> </td>
-      </tr>
-    </tbody>
-  </table>
+Customize output format in `conf.json`:
 
-</details>
+```json
+{
+  "output": {
+    "template": "%artist% - %title%",
+    "template_album": "%artist%/%album%/%track% - %title%"
+  }
+}
+```
 
-## Development
+Available placeholders:
+- `%artist%` - Artist name
+- `%title%` - Track title
+- `%album%` - Album name
+- `%track%` - Track number
+- `%year%` - Release year
 
-### Manually Building
+## 📝 Notes
 
-Feel free to clone and use in adherance to the [license](#license). Pull requests are very much welcome.
+### Known Limitations
 
+- Spotify playlist authentication may vary by region
+- yt-dlp requires Python 3.10+
+- Some rare tracks may not be available on all platforms
+
+### Troubleshooting
+
+**Python version error:**
 ```bash
-git clone https://github.com/miraclx/freyr-js.git freyr
-cd freyr
+# Check Python version
+python3 --version
+
+# If below 3.10, install a newer version
+brew install python@3.11
 ```
 
-- If using [NPM](https://github.com/npm/cli):
+**Authentication errors:**
+- Verify API credentials in `conf.json`
+- Check Spotify developer app settings
+- Ensure Apple Music token is valid
 
-  ```bash
-  npm install
+## 🤝 Contributing
 
-  # to have access to the freyr command globally
-  npm link
-  ```
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- If using [Yarn](https://github.com/yarnpkg/yarn):
+## 📄 License
 
-  ```bash
-  yarn install
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-  # to have access to the freyr command globally
-  yarn link
-  ```
+```
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-### Testing
+    http://www.apache.org/licenses/LICENSE-2.0
 
-Freyr comes bundled with a lightweight test suite. See [TEST.md](https://github.com/miraclx/freyr-js/blob/master/TEST.md) for instructions on how to run it.
-
-### Docker Development
-
-With docker, you can drop into a sandbox that has all the dependencies you need. Without needing to mess around with your host system or install any weird dependencies.
-
-First, you need to either build a local docker image or submit a PR and use the corresponding auto-generated image.
-
-#### Building A Local Image
-
-The default provided [Dockerfile](https://github.com/miraclx/freyr-js/raw/master/Dockerfile) builds minimal alpine images. Average build network usage is ~ 80 MB and disk usage is ~ 180 MB.
-
-```bash
-git clone https://github.com/miraclx/freyr-js.git freyr
-cd freyr
-docker build -t freyr-dev .
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 ```
 
-#### Working With Remote Images
+## 👤 Author
 
-An alternative to building the docker image locally is to use a remote image. By default, all PRs submitted to this repository get an equivalently tagged docker image for testing.
+**Alexandre Albert Ndour**
+- GitHub: [@thesenegalesehitch](https://github.com/thesenegalesehitch)
+- Email: aa.ndour5@isepat.edu.sn
 
-For example, the PR #214 has a docker image called `freyrcli/freyrjs-git:pr-214`. And it stays updated with the current state of the branch.
+## 🙏 Acknowledgments
 
-You can then pull the development image for use locally.
-
-```bash
-docker pull freyrcli/freyrjs-git:pr-214
-```
+- [Freyr-JS](https://github.com/miraclx/freyr-js) - Original project inspiration
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Audio download engine
+- [spotify-web-api-node](https://github.com/thelinmichael/spotify-web-api-node) - Spotify API client
 
 ---
 
-Once you have a built development image locally, you're ready to go. You can drop into the container by explicitly defining the entrypoint
-
-```bash
-docker run -it --entrypoint bash freyr-dev
-
-# Alternatively, create a handy alias
-alias freyrsh='docker run -it --entrypoint bash freyr-dev'
-```
-
-*: don't forget to replace `freyr-dev` with the appropriate image name if you pulled one of the auto-generated remote images.
-
-Optionally, you can use these interesting flags to customize the experience.
-
-- `-h freyr-dev` sets the container hostname to `freyr-dev`
-- `-m 1G` sets the container memory limit
-- `-v $PWD:/data` mounts the current working directory to `/data` within the container.
-- `--cpus 2` limits the container to using 2 CPU cores
-
-The freyr source would be available in the `/freyr` directory within the container along with a globally registered command `freyr` for calling the script.
-
-For more information and documentation about docker, please refer to its official site:
-
-- <https://www.docker.com/>
-- <https://docs.docker.com/>
-
-## License
-
-[Apache 2.0][license] © **Miraculous Owonubi** ([@miraclx][author-url]) \<<omiraculous@gmail.com>\>
-
-[license]:  LICENSE "Apache 2.0 License"
-[author-url]: https://github.com/miraclx
-
-<!-- [npm-url]: https://npmjs.org/package/freyr
-[npm-image]: https://badgen.net/npm/node/freyr
-[npm-image-url]: https://nodei.co/npm/freyr.png?stars&downloads
-[downloads-url]: https://npmjs.org/package/freyr
-[downloads-image]: https://badgen.net/npm/dm/freyr -->
+**Note**: This tool is for personal use only. Please respect the terms of service of each streaming platform and only download content you have the right to access.

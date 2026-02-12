@@ -1,7 +1,7 @@
-const meta = Symbol('FreyrServiceMeta');
-const fileId = Symbol('FreyrFileId');
-const errorCode = Symbol('FreyrErrorCode');
-const errorStack = Symbol('FreyrErrorStack');
+const meta = Symbol('MusicDownloaderServiceMeta');
+const fileId = Symbol('MusicDownloaderFileId');
+const errorCode = Symbol('MusicDownloaderErrorCode');
+const errorStack = Symbol('MusicDownloaderErrorStack');
 
 export default {
   meta,

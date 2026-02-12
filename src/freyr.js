@@ -7,7 +7,7 @@ import Deezer from './services/deezer.js';
 import Spotify from './services/spotify.js';
 import AppleMusic from './services/apple_music.js';
 
-export default class FreyrCore {
+export default class MusicDownloaderCore {
   static ENGINES = [Deezer, Spotify, AppleMusic, YouTube, YouTubeMusic];
 
   static getBitrates() {
@@ -45,12 +45,12 @@ export default class FreyrCore {
 
   constructor(ServiceConfig, AuthServer, serverOpts) {
     ServiceConfig = ServiceConfig || {};
-    this.ENGINES = FreyrCore.ENGINES.map(Engine => new Engine(ServiceConfig[Engine[symbols.meta].ID], AuthServer, serverOpts));
+    this.ENGINES = MusicDownloaderCore.ENGINES.map(Engine => new Engine(ServiceConfig[Engine[symbols.meta].ID], AuthServer, serverOpts));
   }
 
-  identifyService = FreyrCore.identifyService;
+  identifyService = MusicDownloaderCore.identifyService;
 
-  collateSources = FreyrCore.collateSources;
+  collateSources = MusicDownloaderCore.collateSources;
 
-  sortSources = FreyrCore.sortSources;
+  sortSources = MusicDownloaderCore.sortSources;
 }
