@@ -6,6 +6,10 @@ import Promise from 'bluebird';
 import ytSearch from 'yt-search';
 import youtubedl from 'youtube-dl-exec';
 
+// Use system yt-dlp instead of bundled version (Python 3.14 compatible)
+import { create as createYoutubeDl } from 'youtube-dl-exec';
+const systemYtDlp = createYoutubeDl('/usr/local/bin/yt-dlp');
+
 import walk from '../walkr.js';
 import symbols from '../symbols.js';
 import textUtils from '../text_utils.js';
@@ -53,7 +57,7 @@ function _getSearchArgs(artists, track, album, duration) {
 
 function genAsyncGetFeedsFn(url) {
   return () =>
-    youtubedl(null, {
+    systemYtDlp(null, {
       '--': [url],
       socketTimeout: 20,
       cacheDir: false,
