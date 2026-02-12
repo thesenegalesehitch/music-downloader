@@ -12,7 +12,7 @@ A powerful multi-platform music downloader that fetches metadata from Spotify, A
 - **Full Metadata**: Extracts and embeds complete track metadata (ID3v2.4)
 - **High Quality**: Downloads high-quality audio (320kbps equivalent)
 - **Album Art**: Downloads high-resolution cover art
-- **Lyrics**: Saves synchronized lyrics (LRC format)
+- **Lyrics**: Saves synchronized lyrics (LRC format) via lyrics.ovh API
 - **Easy to Use**: Simple command-line interface with interactive mode
 
 ## 📋 Table of Contents
@@ -406,6 +406,7 @@ limitations under the License.
 
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Audio download engine
 - [AtomicParsley](http://atomicparsley.sourceforge.net/) - Metadata embedding
+- [lyrics.ovh](https://lyrics.ovh/) - Free lyrics API
 
 ---
 

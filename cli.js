@@ -56,6 +56,7 @@ import parseRange from './src/parse_range.js';
 import StackLogger from './src/stack_logger.js';
 import streamUtils from './src/stream_utils.js';
 import parseSearchFilter from './src/filter_parser.js';
+import LyricsService from './src/services/lyrics.js';
 
 const maybeStat = path => fs.stat(path).catch(() => false);
 
@@ -659,8 +660,8 @@ async function init(packageJson, queries, options) {
   delete schemaDefault['services'];
   schema.config.default = schemaDefault;
 
-  const freyrCoreConfig = new Conf({
-    projectName: 'MUSIQUEDL',
+  const musicDownloaderCoreConfig = new Conf({
+    projectName: 'music-downloader',
     projectVersion: packageJson.version,
     projectSuffix: '',
     configName: 'config',
@@ -673,10 +674,10 @@ async function init(packageJson, queries, options) {
     },
     migrations: {
       '0.10.0': store => {
-        // https://github.com/miraclx/freyr-js/pull/454
+        // https://github.com/pro/music-downloader-new/pull/454
         // Dump any old config for Spotify before this point
         store.set('services.spotify', {});
-        // https://github.com/miraclx/freyr-js/pull/527
+        // https://github.com/pro/music-downloader-new/pull/527
         // Check dirs shouldn't default to current directory, but rather the output directory
         if ((c => Array.isArray(c) && c.length === 1 && c[0] === '.')(store.get('config.dirs.check')))
           store.set('config.dirs.check', []);
@@ -685,7 +686,7 @@ async function init(packageJson, queries, options) {
     },
   });
 
-  let configStack = [freyrCoreConfig.get('config'), Config];
+  let configStack = [musicDownloaderCoreConfig.get('config'), Config];
 
   try {
     if (options.config)
@@ -799,16 +800,16 @@ async function init(packageJson, queries, options) {
         ? cachedir('MUSIQUEDL')
         : Config.dirs.cache.path;
 
-  let freyrCore;
+  let musicDownloaderCore;
   try {
-    freyrCore = new MusicDownloaderCore(Config.services, AuthServer, Config.server);
+    musicDownloaderCore = new MusicDownloaderCore(Config.services, AuthServer, Config.server);
   } catch (err) {
     stackLogger.error(`\x1b[31m[!]\x1b[0m Failed to initialize a MusicDownloader Instance`);
     stackLogger.error('SHOW_DEBUG_STACK' in process.env ? util.formatWithOptions({colors: true}, err) : err['message'] || err);
     process.exit(6);
   }
 
-  const sourceStack = freyrCore.sortSources(
+  const sourceStack = musicDownloaderCore.sortSources(
     ...Config.downloader.sources.reduce(
       (a, b) => (b.startsWith('!') ? [a[0], a[1].concat(b.slice(1))] : [a[0].concat(b), a[1]]),
       [[], []],
@@ -1640,6 +1641,18 @@ async function init(packageJson, queries, options) {
     const logger = queryLogger.print(`Obtaining track metadata...`).tick();
     const track = await processPromise(service.getTrack(query, options.storefront), logger, {noVal: true});
     if (!track) return Promise.reject();
+    
+    // Enrich with lyrics from Genius if not available from service
+    if ((!track.lyrics || !track.lyrics.length) && options.lyrics !== false) {
+      logger.log(`\u27a4 Fetching lyrics from Genius...`);
+      const enrichedTrack = await LyricsService.enrichWithLyrics(track);
+      if (enrichedTrack.lyrics || enrichedTrack.lyricsLRC) {
+        track.lyrics = enrichedTrack.lyrics;
+        track.lyricsLRC = enrichedTrack.lyricsLRC;
+        logger.log(`\u27a4 Lyrics found!`);
+      }
+    }
+    
     logger.log(`\u27a4 Title: ${track.name}`);
     logger.log(`\u27a4 Album: ${track.album}`);
     logger.log(`\u27a4 Artist: ${track.album_artist}`);
@@ -1764,7 +1777,7 @@ async function init(packageJson, queries, options) {
       });
     }
     if (await service.isAuthed()) return logger.write('[authenticated]\n');
-    service.loadConfig(freyrCoreConfig.get(`services.${service[symbols.meta].ID}`));
+    service.loadConfig(musicDownloaderCoreConfig.get(`services.${service[symbols.meta].ID}`));
     if (await service.isAuthed()) return logger.write('[authenticated]\n');
     logger.write(service.hasOnceAuthed() ? '[expired]\n' : '[unauthenticated]\n');
     const loginLogger = logger.log(`[${service[symbols.meta].DESC} Login]`).tick();
@@ -1779,7 +1792,7 @@ async function init(packageJson, queries, options) {
 
   const queryQueue = new AsyncQueue('cli:queryQueue', Config.concurrency.queries, async query => {
     const queryLogger = stackLogger.log(`[${query}]`).tick();
-    const service = await processPromise(freyrCore.identifyService(query), queryLogger, {
+    const service = await processPromise(musicDownloaderCore.identifyService(query), queryLogger, {
       onInit: '[\u2022] Identifying service...',
       noVal: () => '(failed: \x1b[33mInvalid Query\x1b[0m)\n',
       onPass: engine => `[${engine[symbols.meta].DESC}]\n`,
@@ -1806,7 +1819,7 @@ async function init(packageJson, queries, options) {
       onPass: false,
     }));
     if (!isAuthenticated) return;
-    if (service.hasProps()) freyrCoreConfig.set(`services.${service[symbols.meta].ID}`, service.getProps());
+    if (service.hasProps()) musicDownloaderCoreConfig.set(`services.${service[symbols.meta].ID}`, service.getProps());
     const contentType = service.identifyType(resolvedQuery);
     queryLogger.log(`Detected [${contentType}]`);
     let queryStats = await pFlatten(
