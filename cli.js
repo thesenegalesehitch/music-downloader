@@ -1277,8 +1277,12 @@ async function init(packageJson, queries, options) {
               ? 'explicit'
               : undefined, // Don't set advisory if not explicit/clean/inoffensive
           stik: 'Normal',
-          albumSort: track.albumSortName || track.album || '',
-          artistSort: track.artistSortNames?.[0] || track.artists?.[0] || '',
+          // Use "sortOrder" for sort names - AtomicParsley expects: --sortOrder type "value"
+          // Format: --sortOrder artist "Sort Name" --sortOrder album "Sort Album"
+          sortOrder: [
+            ['album', track.albumSortName || track.album || ''],
+            ['artist', track.artistSortNames?.[0] || track.artists?.[0] || ''],
+          ].filter(([, value]) => value && value.length > 0),
           purchaseDate: 'timestamp',
           apID: 'cli@musiquedl.git',
           copyright: track.copyrights
