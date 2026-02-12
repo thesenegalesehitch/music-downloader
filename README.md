@@ -21,6 +21,7 @@ A powerful multi-platform music downloader that fetches metadata from Spotify, A
 - [Quick Start](#quick-start)
 - [Interactive Mode](#interactive-mode)
 - [Command Line Options](#command-line-options)
+- [Configuration](#configuration)
 - [Supported Services](#supported-services)
 - [Requirements](#requirements)
 - [Contributing](#contributing)
@@ -57,10 +58,13 @@ After installation, you can run the tool with:
 # Method 1: Direct node execution
 node cli.js "URL"
 
-# Method 2: Using npm script (after setup)
+# Method 2: Using npm script
 npm start -- "URL"
 
-# Method 3: Install globally
+# Method 3: Interactive mode
+npm start:i --
+
+# Method 4: Install globally
 npm install -g .
 musiquedl "URL"
 ```
@@ -80,7 +84,7 @@ node cli.js "https://music.apple.com/us/song/song-name/id1234567890"
 node cli.js "https://www.deezer.com/track/123456789"
 
 # Deezer shortlinks (automatic resolution)
-node cli.js "https://deezer.page.link/abc123"
+node cli.js "https://deezer.page-link/abc123"
 ```
 
 ### Download an album
@@ -114,6 +118,7 @@ Start the wizard for guided downloads:
 
 ```bash
 node cli.js --interactive
+npm start:i --
 ```
 
 Follow the prompts:
@@ -156,6 +161,90 @@ node cli.js --lyrics "URL"
 node cli.js --no-playlist "URL"
 ```
 
+### Quality Options
+
+```bash
+# 320kbps (highest)
+node cli.js --1 "URL"
+
+# 256kbps (high)
+node cli.js --2 "URL"
+
+# 192kbps (medium)
+node cli.js --3 "URL"
+
+# 128kbps (low)
+node cli.js --4 "URL"
+```
+
+## ⚙️ Configuration
+
+Create or edit `conf.json` to customize behavior:
+
+```json
+{
+  "dirs": {
+    "output": "./downloads"
+  },
+  "audio": {
+    "quality": "best",
+    "bitrate": 320,
+    "codec": "auto"
+  },
+  "cover_art": {
+    "enabled": true,
+    "max_size": 1280,
+    "save_cover": true
+  },
+  "lyrics": {
+    "enabled": true,
+    "save_lrc": true,
+    "embed_lyrics": true
+  },
+  "metadata": {
+    "enabled": true,
+    "id3_version": "2.4"
+  },
+  "output": {
+    "template": "%artist% - %title%",
+    "template_album": "%artist%/%album%/%track% - %title%"
+  },
+  "services": {
+    "spotify": {
+      "clientId": "YOUR_CLIENT_ID",
+      "clientSecret": "YOUR_CLIENT_SECRET"
+    },
+    "apple_music": {
+      "storefront": "us"
+    }
+  }
+}
+```
+
+### Configuration Options
+
+| Section | Option | Description | Default |
+|---------|--------|-------------|---------|
+| `dirs.output` | string | Download directory | `./downloads` |
+| `audio.bitrate` | number | Audio bitrate (kbps) | 320 |
+| `audio.quality` | string | Quality setting | `best` |
+| `cover_art.enabled` | boolean | Enable cover download | `true` |
+| `cover_art.max_size` | number | Max cover dimension | 1280 |
+| `lyrics.enabled` | boolean | Enable lyrics fetching | `true` |
+| `lyrics.save_lrc` | boolean | Save LRC format | `true` |
+| `metadata.id3_version` | string | ID3 tag version | `2.4` |
+| `output.template` | string | Single track naming | `%artist% - %title%` |
+| `output.template_album` | string | Album track naming | `%artist%/%album%/%track% - %title%` |
+
+### Output Template Variables
+
+Available placeholders for `template` and `template_album`:
+- `%artist%` - Artist name
+- `%title%` - Track title
+- `%album%` - Album name
+- `%track%` - Track number (padded)
+- `%year%` - Release year
+
 ### Supported Link Formats
 
 | Service | Track | Album | Playlist | Shortlink |
@@ -170,6 +259,7 @@ node cli.js --no-playlist "URL"
 - Full track, album, playlist support
 - OAuth authentication required for full access
 - Rich metadata extraction
+- Get credentials at: https://developer.spotify.com/dashboard
 
 ### Apple Music
 - Full catalog access
@@ -187,7 +277,7 @@ node cli.js --no-playlist "URL"
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| Node.js |.0 |  18.020.0.0+ |
+| Node.js | 18.0.0 | 20.0.0+ |
 | RAM | 512 MB | 1 GB |
 | Disk | 1 GB | 5 GB |
 
@@ -195,6 +285,7 @@ node cli.js --no-playlist "URL"
 
 - **yt-dlp** - YouTube audio extraction
 - **AtomicParsley** - Metadata embedding (M4A)
+- **FFmpeg** - Audio encoding
 
 ## 📁 Output Structure
 
@@ -219,7 +310,7 @@ Alongside each audio file, you may find:
 
 ## 🔧 API Credentials (Optional)
 
-### Spotify Setup (Optional)
+### Spotify Setup
 
 For full Spotify functionality, add credentials to `conf.json`:
 
@@ -236,12 +327,25 @@ For full Spotify functionality, add credentials to `conf.json`:
 
 Get credentials at: https://developer.spotify.com/dashboard
 
+### Apple Music Setup (Optional)
+
+```json
+{
+  "services": {
+    "apple_music": {
+      "storefront": "us"
+    }
+  }
+}
+```
+
 ## 📝 Notes
 
 ### Known Limitations
 
 - Spotify playlist authentication may vary by region
 - Some rare tracks may not be available on all platforms
+- yt-dlp requires Python 3.10+ for best compatibility
 
 ### Troubleshooting
 
@@ -260,6 +364,11 @@ mkdir -p downloads
 # Or specify a different directory
 node cli.js --directory ~/Music "URL"
 ```
+
+**Spotify authentication failed:**
+- Verify credentials in `conf.json`
+- Check Spotify developer app settings
+- Ensure redirect URI is configured correctly
 
 ## 🤝 Contributing
 
