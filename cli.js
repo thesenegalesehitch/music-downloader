@@ -1,5 +1,19 @@
 #!/usr/bin/env node
 /* eslint-disable consistent-return, camelcase, prefer-promise-reject-errors */
+
+// Suppress Node.js deprecation warnings for dependencies
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning') {
+    // Suppress punycode deprecation warning
+    if (warning.message.includes('punycode')) return;
+    // Suppress url.parse deprecation warning
+    if (warning.message.includes('url.parse')) return;
+  }
+  // Log other warnings
+  console.warn(`Warning: ${warning.message}`);
+});
+
 import xurl from 'url';
 import util from 'util';
 import xpath from 'path';
@@ -671,7 +685,7 @@ async function init(packageJson, queries, options) {
     },
   });
 
-  let configStack = [Config, freyrCoreConfig.get('config')];
+  let configStack = [freyrCoreConfig.get('config'), Config];
 
   try {
     if (options.config)
@@ -711,7 +725,7 @@ async function init(packageJson, queries, options) {
   Config.dirs = _mergeWith(
     Config.dirs,
     {
-      output: options.directory,
+      output: options.directory || undefined,
       check: options.checkDir,
       cache: {
         path: options.cacheDir,
@@ -751,8 +765,15 @@ async function init(packageJson, queries, options) {
 
   const BASE_DIRECTORY = (path => (xpath.isAbsolute(path) ? path : xpath.relative('.', path || '.') || '.'))(Config.dirs.output);
 
-  if (!(await maybeStat(BASE_DIRECTORY)))
-    stackLogger.error(`\x1b[31m[!]\x1b[0m Working directory [${BASE_DIRECTORY}] doesn't exist`), process.exit(5);
+  // Auto-create output directory if it doesn't exist
+  if (!(await maybeStat(BASE_DIRECTORY))) {
+    try {
+      await mkdirp(BASE_DIRECTORY);
+      stackLogger.log(`[✓] Created output directory: [${BASE_DIRECTORY}]`);
+    } catch (err) {
+      stackLogger.error(`\x1b[31m[!]\x1b[0m Failed to create directory [${BASE_DIRECTORY}]`), process.exit(5);
+    }
+  }
 
   if (
     (await processPromise(fs.access(BASE_DIRECTORY, fs_constants.W_OK), stackLogger, {

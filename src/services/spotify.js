@@ -40,11 +40,17 @@ export default class Spotify {
   };
 
   constructor(config, authServer, serverOpts) {
-    if (!config) throw new Error(`[Spotify] Please define a configuration object`);
-    if (typeof config !== 'object') throw new Error(`[Spotify] Please define a configuration as an object`);
-    if (!config.clientId) throw new Error(`[Spotify] Please define [clientId] as a property within the configuration`);
-    if (!config.clientSecret) throw new Error(`[Spotify] Please define [clientSecret] as a property within the configuration`);
+    if (!config) config = {};
     [this.#store.AuthServer, this.#store.serverOpts] = [authServer, serverOpts];
+    
+    // Allow empty credentials - Spotify will just not be usable without them
+    // Users can still use Deezer and Apple Music
+    if (!config.clientId || !config.clientSecret) {
+      console.warn('[Spotify] No credentials provided - Spotify service will not be available');
+      this.#store.core = null;
+      return;
+    }
+    
     this.#store.core = new SpotifyWebApi({
       clientId: config.clientId,
       clientSecret: config.clientSecret,
@@ -53,21 +59,22 @@ export default class Spotify {
   }
 
   loadConfig(config) {
+    if (!this.#store.core) return;
     if (config.expiry) this.#store.expiry = config.expiry;
     if (config.accessToken) this.#store.core.setAccessToken(config.accessToken);
     if (config.refreshToken) this.#store.core.setRefreshToken(config.refreshToken);
   }
 
   hasOnceAuthed() {
-    return this.#store.isAuthenticated;
+    return this.#store.isAuthenticated && this.#store.core !== null;
   }
 
   accessTokenIsValid() {
-    return Date.now() < this.#store.expiry;
+    return this.#store.core !== null && Date.now() < this.#store.expiry;
   }
 
   async isAuthed() {
-    return this.accessTokenIsValid();
+    return this.#store.core !== null && this.accessTokenIsValid();
   }
 
   newAuth() {
@@ -94,14 +101,15 @@ export default class Spotify {
   }
 
   canTryLogin() {
-    return !!this.#store.core.getRefreshToken();
+    return this.#store.core !== null && !!this.#store.core.getRefreshToken();
   }
 
   hasProps() {
-    return this.#store.isAuthenticated;
+    return this.#store.core !== null && this.#store.isAuthenticated;
   }
 
   getProps() {
+    if (!this.#store.core) return { expiry: null, accessToken: null, refreshToken: null };
     return {
       expiry: this.#store.expiry,
       accessToken: this.#store.core.getAccessToken(),
@@ -110,6 +118,7 @@ export default class Spotify {
   }
 
   async login(config) {
+    if (!this.#store.core) return false;
     if (config) this.loadConfig(config);
     if (!this.accessTokenIsValid()) {
       const data = await this.#store.core.refreshAccessToken();

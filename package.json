@@ -8,10 +8,14 @@
     "musiquedl": "./cli.js"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "scripts": {
-    "test": "$NODE test/index.js"
+    "start": "node cli.js",
+    "start:i": "node cli.js --interactive",
+    "test": "$NODE test/index.js",
+    "lint": "eslint cli.js src/",
+    "lint:fix": "eslint --fix cli.js src/"
   },
   "files": [
     "src",
