@@ -12,6 +12,7 @@
   },
   "scripts": {
     "start": "node cli.js",
+    "start:web": "node simple_server.js",
     "start:i": "node cli.js --interactive",
     "test": "$NODE test/index.js",
     "lint": "eslint cli.js src/",

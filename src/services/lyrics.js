@@ -111,6 +111,91 @@ export default class LyricsService {
   }
 
   /**
+   * Fetch lyrics from LRCLIB (free, open source)
+   * @param {string} title - Song title
+   * @param {string} artist - Artist name
+   * @param {string} album - Album name (optional)
+   * @param {string} duration - Duration in seconds (optional)
+   * @returns {Promise<{plain: string|null, lrc: string|null}>}
+   */
+  static async fetchFromLrcLib(title, artist, album, duration) {
+    try {
+      const url = 'https://lrclib.net/api/get';
+      const searchParams = {
+        artist_name: artist,
+        track_name: title,
+      };
+      if (album) searchParams.album_name = album;
+      if (duration) searchParams.duration = Math.round(duration);
+
+      const response = await got(url, {
+        searchParams,
+        headers: {
+          'User-Agent': 'MusicDownloader/1.0.0 (https://github.com/thesenegalesehitch/music-downloader)',
+        },
+        timeout: { request: 10000 },
+      });
+
+      const data = JSON.parse(response.body);
+
+      if (data) {
+        return {
+          plain: data.plainLyrics || null,
+          lrc: data.syncedLyrics || null,
+        };
+      }
+    } catch (err) {
+      // Try search endpoint if get fails
+      try {
+        const searchUrl = 'https://lrclib.net/api/search';
+        const searchResponse = await got(searchUrl, {
+          searchParams: { q: `${artist} ${title}` },
+          headers: {
+             'User-Agent': 'MusicDownloader/1.0.0 (https://github.com/thesenegalesehitch/music-downloader)',
+          },
+          timeout: { request: 10000 },
+        });
+        
+        const searchData = JSON.parse(searchResponse.body);
+        if (Array.isArray(searchData) && searchData.length > 0) {
+           // Pick the best match (first one usually)
+           const bestMatch = searchData[0];
+           return {
+             plain: bestMatch.plainLyrics || null,
+             lrc: bestMatch.syncedLyrics || null,
+           };
+        }
+
+      } catch (searchErr) {
+        console.error(`[Lyrics] Error fetching from LRCLIB: ${searchErr.message}`);
+      }
+    }
+    return { plain: null, lrc: null };
+  }
+
+  /**
+   * Get lyrics for specific parameters
+   * @param {string} title 
+   * @param {string} artist 
+   * @param {string} album 
+   * @param {number} duration 
+   */
+  static async get(title, artist, album, duration) {
+    // Try LRCLIB first
+    let lyricsData = await this.fetchFromLrcLib(title, artist, album, duration);
+    
+    // Fallback to lyrics.ovh
+    if (!lyricsData.lrc && !lyricsData.plain) {
+        lyricsData = await this.fetchLyrics(title, artist);
+    }
+
+    return {
+        lyrics: lyricsData.plain,
+        lyricsLRC: lyricsData.lrc
+    };
+  }
+
+  /**
    * Fetch lyrics for a track and merge with existing metadata
    * @param {Object} track - Track metadata object
    * @returns {Promise<Object>} Updated track with lyrics
@@ -121,17 +206,26 @@ export default class LyricsService {
       return track;
     }
 
-    const { title, name, artists, artist } = track;
+    const { title, name, artists, artist, album, duration } = track;
     const trackTitle = title || name;
-    const trackArtist = typeof artist === 'string' ? artist : (artists && artists[0]?.name) || 'Unknown';
+    const trackArtist = typeof artist === 'string' ? artist : (artists && artists[0]?.name) || (Array.isArray(artists) ? artists[0] : 'Unknown');
+    const trackAlbum = album || null;
+    const trackDuration = duration ? duration / 1000 : null; // duration usually in ms
 
-    const { plain, lrc } = await this.fetchLyrics(trackTitle, trackArtist);
+    // Try Primary Source (LRCLIB) for Synced Lyrics
+    let lyricsData = await this.fetchFromLrcLib(trackTitle, trackArtist, trackAlbum, trackDuration);
 
-    if (lrc || plain) {
+    // If no lyrics found, try Secondary Source (lyrics.ovh)
+    if (!lyricsData.plain && !lyricsData.lrc) {
+      console.log(`[Lyrics] LRCLIB failed, trying lyrics.ovh for: ${trackTitle} - ${trackArtist}`);
+      lyricsData = await this.fetchLyrics(trackTitle, trackArtist);
+    }
+
+    if (lyricsData.lrc || lyricsData.plain) {
       return {
         ...track,
-        lyrics: plain,
-        lyricsLRC: lrc,
+        lyrics: lyricsData.plain,
+        lyricsLRC: lyricsData.lrc,
       };
     }
 
