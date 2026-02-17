@@ -47,12 +47,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // document.getElementById('repeat-btn').addEventListener('click', toggleRepeat); // Inline onclick
 
     const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
     const volumeSlider = document.getElementById('volume-slider');
     const audio = document.getElementById('main-audio');
     
-    if (progressBar) {
-        progressBar.addEventListener('click', (e) => {
-             const rect = progressBar.getBoundingClientRect();
+    if (progressContainer) {
+        progressContainer.addEventListener('click', (e) => {
+             const rect = progressContainer.getBoundingClientRect();
              const pos = (e.clientX - rect.left) / rect.width;
              if (audio && audio.duration) {
                  audio.currentTime = pos * audio.duration;
@@ -334,7 +335,8 @@ async function loadTrack(index) {
     document.getElementById('player-bar').classList.remove('hidden');
     document.getElementById('player-title').textContent = track.name;
     document.getElementById('player-artist').textContent = Array.isArray(track.artists) ? track.artists.join(', ') : track.artists;
-    document.getElementById('player-cover').src = track.cover_url || '';
+    const artEl = document.getElementById('player-art');
+    if (artEl) artEl.src = track.cover_url || artEl.src;
     
     // Highlight in list
     document.querySelectorAll('.track-item').forEach((el, i) => {
@@ -454,18 +456,11 @@ function renderLyrics() {
 function updateProgress() {
     const audio = document.getElementById('main-audio');
     const progressBar = document.getElementById('progress-bar');
-    const currentTimeSpan = document.getElementById('current-time');
-    const totalDurationSpan = document.getElementById('total-duration');
-    
-    if (isNaN(audio.duration)) return;
+    if (!audio || !progressBar || isNaN(audio.duration)) return;
 
     const percent = (audio.currentTime / audio.duration) * 100;
-    progressBar.value = percent;
+    progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
     
-    currentTimeSpan.textContent = formatDuration(audio.currentTime * 1000);
-    totalDurationSpan.textContent = formatDuration(audio.duration * 1000);
-    
-    // Sync Lyrics
     if (lyricsData.length > 0) {
         let activeIndex = -1;
         for (let i = 0; i < lyricsData.length; i++) {
@@ -687,13 +682,15 @@ function playLibraryFile(url, title, artist, type) {
     document.getElementById('player-bar').classList.remove('hidden');
     document.getElementById('player-title').textContent = title;
     document.getElementById('player-artist').textContent = artist;
-    document.getElementById('player-cover').src = '';
+    const artEl = document.getElementById('player-art');
+    if (artEl) artEl.src = type === 'video' ? 'https://via.placeholder.com/300?text=Video' : 'https://via.placeholder.com/300?text=Audio';
     document.getElementById('synced-lyrics').innerHTML = '<p>Lecture locale...</p>';
     
     const audio = document.getElementById('main-audio');
     audio.src = url;
     audio.play().then(() => {
-        document.getElementById('play-pause-btn').textContent = '⏸';
+        const btn = document.getElementById('play-pause-btn');
+        if (btn) btn.textContent = '⏸';
     }).catch(e => console.error(e));
 }
 
