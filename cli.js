@@ -57,6 +57,7 @@ import StackLogger from './src/stack_logger.js';
 import streamUtils from './src/stream_utils.js';
 import parseSearchFilter from './src/filter_parser.js';
 import LyricsService from './src/services/lyrics.js';
+import ArtworkService from './src/services/artwork.js';
 
 const maybeStat = path => fs.stat(path).catch(() => false);
 
@@ -610,10 +611,69 @@ async function init(packageJson, queries, options) {
             },
           },
         },
+        audio: {
+          type: 'object',
+          properties: {
+            quality: {type: 'string'},
+            format: {type: 'string'},
+            bitrate: {type: 'integer'},
+            codec: {type: 'string'},
+          },
+        },
+        cover_art: {
+          type: 'object',
+          properties: {
+            enabled: {type: 'boolean'},
+            max_size: {type: 'integer'},
+            format: {type: 'string'},
+            quality: {type: 'integer'},
+            save_cover: {type: 'boolean'},
+          },
+        },
+        explicit: {
+          type: 'object',
+          properties: {
+            enabled: {type: 'boolean'},
+            tag_id3v2: {type: 'boolean'},
+            filter_explicit: {type: 'boolean'},
+            prefer_clean: {type: 'boolean'},
+          },
+        },
+        lyrics: {
+          type: 'object',
+          properties: {
+            enabled: {type: 'boolean'},
+            save_lrc: {type: 'boolean'},
+            save_srt: {type: 'boolean'},
+            embed_lyrics: {type: 'boolean'},
+            source: {type: 'string'},
+          },
+        },
+        output: {
+          type: 'object',
+          properties: {
+            template: {type: 'string'},
+            template_album: {type: 'string'},
+            lowercase: {type: 'boolean'},
+            spaces_to_underscores: {type: 'boolean'},
+            preserve_folder_structure: {type: 'boolean'},
+          },
+        },
         // Extended metadata configuration
         metadata: {
           type: 'object',
           properties: {
+            enabled: {type: 'boolean'},
+            id3_version: {type: 'string'},
+            include_genre: {type: 'boolean'},
+            include_label: {type: 'boolean'},
+            include_isrc: {type: 'boolean'},
+            include_copyright: {type: 'boolean'},
+            include_release_date: {type: 'boolean'},
+            include_lyrics: {type: 'boolean'},
+            include_bpm: {type: 'boolean'},
+            include_key: {type: 'boolean'},
+            // Keeping old ones just in case but they seem unused in conf.json
             saveLyrics: {type: 'boolean'},
             lyricsFormat: {type: 'string'},
             includeFeatured: {type: 'boolean'},
@@ -757,6 +817,10 @@ async function init(packageJson, queries, options) {
     },
     (a, b, k) => (k === 'sources' && [a, b].every(Array.isArray) ? Array.from(new Set(b.concat(a))) : undefined),
   );
+
+  const targetFormat = (Config.audio.format === 'auto' ? null : Config.audio.format) || options.format || 'm4a';
+  const targetExt = `.${targetFormat}`;
+  const targetBitrate = Config.audio.bitrate ? `${Config.audio.bitrate}k` : options.bitrate || '320k';
 
   let barWriteStream;
   if (options.bar && null === (barWriteStream = getPersistentStdout())) options.bar = false;
@@ -1057,8 +1121,18 @@ async function init(packageJson, queries, options) {
           keep: true,
         }).writeOnce(async imageFile => {
           try {
+            // Attempt to get High-Res Artwork
+            let coverUrl = track.getImage(Config.image.width, Config.image.height);
+            try {
+                 const artistName = Array.isArray(track.artists) ? track.artists[0] : track.artists;
+                 const highRes = await ArtworkService.getHighResArtwork(artistName, track.album);
+                 if (highRes) coverUrl = highRes;
+             } catch (e) {
+                // Ignore artwork fetch errors, fallback to default
+            }
+
             imageBytesWritten = await downloadToStream({
-              urlOrFragments: track.getImage(Config.image.width, Config.image.height),
+              urlOrFragments: coverUrl,
               outputFile: imageFile,
               logger: trackLogger,
               opts: {
@@ -1275,7 +1349,7 @@ async function init(packageJson, queries, options) {
           overWrite: '', // overwrite the file
           title: track.name,
           artist: track.artists?.[0] || '',
-          composer: track.composers,
+          composer: Array.isArray(track.composers) ? track.composers.join(', ') : track.composers,
           album: track.album,
           genre: (genre => (genre ? genre.concat(' ') : ''))((track.genres || [])[0]),
           tracknum: track.total_tracks
@@ -1376,27 +1450,102 @@ async function init(packageJson, queries, options) {
       },
       async (ffmpeg, {track, meta, files}) => {
         let infile = xpath.basename(files.audio.file.path);
-        let outfile = xpath.basename(files.audio.file.path.replace(/\.x4a$/, '.m4a'));
+        let outfile = xpath.basename(files.audio.file.path.replace(/\.x4a$/, targetExt));
         try {
           ffmpeg.FS('writeFile', infile, await fetchFile(files.audio.file.path));
-          await ffmpeg.run(
-            '-i',
-            infile,
-            '-acodec',
-            'aac',
-            '-b:a',
-            options.bitrate,
-            '-ar',
-            '44100',
-            '-vn',
-            '-t',
-            TimeFormat.fromMs(track.duration, 'hh:mm:ss.sss'),
-            '-f',
-            'ipod',
-            '-aac_pns',
-            '0',
-            outfile,
-          );
+          
+          let args = ['-i', infile];
+
+          if (targetFormat === 'mp3') {
+             args.push('-acodec', 'libmp3lame', '-b:a', targetBitrate);
+             args.push('-id3v2_version', '3');
+             args.push('-metadata', `title=${track.name}`);
+             args.push('-metadata', `artist=${track.artists.join(', ')}`);
+             args.push('-metadata', `album=${track.album}`);
+             args.push('-metadata', `genre=${track.genres ? track.genres[0] : ''}`);
+             args.push('-metadata', `track=${track.track_number}/${track.total_tracks}`);
+             args.push('-metadata', `date=${track.release_date || track.year}`);
+             
+             let copyright = track.copyrights
+               ?.sort(({type}) => (type === 'P' ? -1 : 1))[0]
+               ?.text?.replace('(P)', '℗')?.replace('(C)', '©');
+             if (copyright) args.push('-metadata', `copyright=${copyright}`);
+             else if (track.label) args.push('-metadata', `copyright=${track.label}`);
+
+             if (track.composers) {
+                 const composers = Array.isArray(track.composers) ? track.composers.join(', ') : track.composers;
+                 args.push('-metadata', `composer=${composers}`);
+             }
+
+             if (track.isrc) {
+                 args.push('-metadata', `ISRC=${track.isrc}`);
+             }
+
+             const lyrics = track.lyricsLRC || track.lyrics;
+             if (lyrics) {
+                 args.push('-metadata', `lyrics=${lyrics}`);
+             }
+
+             if (options.cover && files.image) {
+                let imgExt = (await fileTypeFromFile(files.image.file.path)).ext;
+                let imgFile = 'cover.' + imgExt;
+                ffmpeg.FS('writeFile', imgFile, await fetchFile(files.image.file.path));
+                args.push('-i', imgFile, '-map', '0:0', '-map', '1:0', '-c:v', 'copy', '-metadata:s:v', 'title="Album cover"', '-metadata:s:v', 'comment="Cover (front)"');
+             } else {
+                args.push('-vn');
+             }
+          } else if (targetFormat === 'flac') {
+             args.push('-acodec', 'flac');
+             args.push('-metadata', `title=${track.name}`);
+             args.push('-metadata', `artist=${track.artists.join(', ')}`);
+             args.push('-metadata', `album=${track.album}`);
+             args.push('-metadata', `genre=${track.genres ? track.genres[0] : ''}`);
+             args.push('-metadata', `track=${track.track_number}/${track.total_tracks}`);
+             args.push('-metadata', `date=${track.release_date || track.year}`);
+             
+             let copyright = track.copyrights
+               ?.sort(({type}) => (type === 'P' ? -1 : 1))[0]
+               ?.text?.replace('(P)', '℗')?.replace('(C)', '©');
+             if (copyright) args.push('-metadata', `copyright=${copyright}`);
+             else if (track.label) args.push('-metadata', `copyright=${track.label}`);
+
+             if (track.composers) {
+                 const composers = Array.isArray(track.composers) ? track.composers.join(', ') : track.composers;
+                 args.push('-metadata', `composer=${composers}`);
+             }
+
+             if (track.isrc) {
+                 args.push('-metadata', `ISRC=${track.isrc}`);
+             }
+
+             const lyrics = track.lyricsLRC || track.lyrics;
+             if (lyrics) {
+                 args.push('-metadata', `lyrics=${lyrics}`);
+             }
+
+             if (options.cover && files.image) {
+                let imgExt = (await fileTypeFromFile(files.image.file.path)).ext;
+                let imgFile = 'cover.' + imgExt;
+                ffmpeg.FS('writeFile', imgFile, await fetchFile(files.image.file.path));
+                args.push('-i', imgFile, '-map', '0:0', '-map', '1:0', '-c:v', 'copy', '-metadata:s:v', 'title="Album cover"', '-metadata:s:v', 'comment="Cover (front)"');
+             } else {
+                args.push('-vn');
+             }
+          } else {
+             args.push(
+               '-acodec', 'aac',
+               '-b:a', targetBitrate,
+               '-ar', '44100',
+               '-vn',
+               '-f', 'ipod',
+               '-aac_pns', '0'
+             );
+          }
+
+          args.push('-t', TimeFormat.fromMs(track.duration, 'hh:mm:ss.sss'));
+          args.push(outfile);
+
+          await ffmpeg.run(...args);
           await fs.writeFile(meta.outFile.handle, ffmpeg.FS('readFile', outfile));
         } catch (err) {
           throw {err, [symbols.errorCode]: 7};
@@ -1423,7 +1572,9 @@ async function init(packageJson, queries, options) {
         meta.outFile = audioFile;
         try {
           await encodeQueue.push({track, meta, files});
-          await embedQueue.push({track, meta, files, audioSource});
+          if (targetFormat === 'm4a') {
+            await embedQueue.push({track, meta, files, audioSource});
+          }
         } catch (err) {
           await audioFile.remove();
           throw err;
@@ -1575,6 +1726,19 @@ async function init(packageJson, queries, options) {
       } catch (err) {
         return {[symbols.errorCode]: -1, err};
       }
+
+      // Enrich with lyrics if not available
+      if ((!track.lyrics || !track.lyrics.length) && options.lyrics !== false) {
+        try {
+            const enriched = await LyricsService.enrichWithLyrics(track);
+            if (enriched.lyrics || enriched.lyricsLRC) {
+                track.lyrics = enriched.lyrics;
+                track.lyricsLRC = enriched.lyricsLRC;
+            }
+        } catch (e) {
+            // silent fail
+        }
+      }
       if ((track[symbols.errorStack] || {}).code === 1)
         return {
           [symbols.errorCode]: -1,
@@ -1589,7 +1753,7 @@ async function init(packageJson, queries, options) {
       );
       const outFileName = `${filenamify(trackBaseName, {
         replacement: '_',
-      })}.m4a`;
+      })}${targetExt}`;
       const trackPath = xpath.join(
         ...(options.tree ? [track.album_artist, track.album].map(name => filenamify(name, {replacement: '_'})) : []),
       );
@@ -2313,13 +2477,11 @@ function prepCli(packageJson) {
       '640x640',
     )
     .option('-C, --no-cover', 'skip saving a cover art')
-    /* Unimplemented Feature
     .option(
       '-x, --format <FORMAT>',
-      ['preferred audio output format (to export) (unimplemented)', '(valid: mp3,m4a,flac)'].join('\n'),
+      ['preferred audio output format (to export)', '(valid: mp3,m4a,flac)'].join('\n'),
       'm4a',
     )
-    */
     .option(
       '-S, --sources <SERVICE>',
       [
