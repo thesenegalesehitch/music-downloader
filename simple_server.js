@@ -9,43 +9,130 @@ import LyricsService from './src/services/lyrics.js';
 import ArtworkService from './src/services/artwork.js';
 import youtubedl from 'youtube-dl-exec';
 import ytSearch from 'yt-search';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const HOST = process.env.HOST || '0.0.0.0';
 
-// Load config
+// ============================================================================
+// Configuration Loading
+// ============================================================================
 const configPath = path.join(__dirname, 'conf.json');
 let config;
 try {
-  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 } catch (e) {
-  console.error('Failed to load conf.json:', e);
-  process.exit(1);
+    console.error('Failed to load conf.json:', e);
+    process.exit(1);
 }
 
-// Initialize MusicDownloaderCore
+// Environment overrides for sensitive credentials
+config.services = config.services || {};
+config.services.spotify = {
+    ...(config.services.spotify || {}),
+    ...(process.env.SPOTIFY_CLIENT_ID ||
+    process.env.SPOTIFY_CLIENT_SECRET ||
+    process.env.SPOTIFY_REFRESH_TOKEN
+        ? {
+              clientId: process.env.SPOTIFY_CLIENT_ID || (config.services.spotify || {}).clientId,
+              clientSecret:
+                  process.env.SPOTIFY_CLIENT_SECRET || (config.services.spotify || {}).clientSecret,
+              refreshToken:
+                  process.env.SPOTIFY_REFRESH_TOKEN || (config.services.spotify || {}).refreshToken,
+          }
+        : {}),
+};
+config.services.apple_music = {
+    ...(config.services.apple_music || {}),
+    ...(process.env.APPLE_DEVELOPER_TOKEN
+        ? { developerToken: process.env.APPLE_DEVELOPER_TOKEN }
+        : {}),
+};
+
+// Deezer & Musixmatch env overrides
+config.services.deezer = {
+    ...(config.services.deezer || {}),
+    ...(process.env.DEEZER_ARL ? { arl: process.env.DEEZER_ARL } : {}),
+};
+config.services.musixmatch = {
+    ...(config.services.musixmatch || {}),
+    ...(process.env.MUSIXMATCH_API_KEY ? { apiKey: process.env.MUSIXMATCH_API_KEY } : {}),
+};
+
+// ============================================================================
+// Core Initialization
+// ============================================================================
 let musicDownloaderCore;
 try {
-  musicDownloaderCore = new MusicDownloaderCore(config.services, AuthServer, config.server);
-  console.log('MusicDownloaderCore initialized successfully');
+    musicDownloaderCore = new MusicDownloaderCore(config.services, AuthServer, config.server);
+    console.log('MusicDownloaderCore initialized successfully');
 } catch (err) {
-  console.error('Failed to initialize MusicDownloaderCore:', err);
+    console.error('Failed to initialize MusicDownloaderCore:', err);
 }
+
+// ============================================================================
+// Middleware & Static Files
+// ============================================================================
+app.set('trust proxy', true);
+app.use(helmet());
+app.use(compression());
+
+// CORS (configurable via env; default to all)
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+app.use(
+    cors({
+        origin: (origin, cb) => {
+            if (!allowedOrigins.length || !origin || allowedOrigins.includes(origin))
+                return cb(null, true);
+            cb(new Error('Not allowed by CORS'));
+        },
+        credentials: true,
+    })
+);
+
+// Basic rate limiting for API endpoints
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
 
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request Logging Middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
 // Ensure downloads directory exists
 const DOWNLOAD_DIR = path.join(__dirname, 'downloads');
 if (!fs.existsSync(DOWNLOAD_DIR)) {
-    fs.mkdirSync(DOWNLOAD_DIR);
+    fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 }
-// Serve downloads directory
+// Serve downloads directory publicly
 app.use('/downloads', express.static(DOWNLOAD_DIR));
 
-// Helper: Normalize track metadata
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Normalizes track metadata for frontend consumption
+ * Handles image resolution, fallback values, and data formatting
+ */
 const normalizeTrack = (track) => {
     // Resolve image URL
     let cover_url = null;
@@ -62,127 +149,178 @@ const normalizeTrack = (track) => {
             cover_url = track.album.images;
         }
     }
-    
+
     return {
         ...track,
         url: track.url || track.link,
         cover_url: cover_url || 'https://via.placeholder.com/300?text=No+Cover',
         isrc: track.isrc || 'N/A',
         label: track.label || (track.album ? track.album.label : 'N/A'),
-        credits: track.composers ? (Array.isArray(track.composers) ? track.composers.join(', ') : track.composers) : (track.producer || 'N/A'),
+        credits: track.composers
+            ? Array.isArray(track.composers)
+                ? track.composers.join(', ')
+                : track.composers
+            : track.producer || 'N/A',
         year: track.release_date ? new Date(track.release_date).getFullYear() : 'N/A',
-        genre: Array.isArray(track.genres) ? track.genres.join(', ') : (track.genres || 'N/A'),
+        genre: Array.isArray(track.genres) ? track.genres.join(', ') : track.genres || 'N/A',
         lyrics: track.lyrics || null,
-        duration: track.duration
+        duration: track.duration,
     };
 };
 
-// API: Get Metadata (Tracks/Albums/Playlists)
+// ============================================================================
+// API Endpoints
+// ============================================================================
+
+/**
+ * GET /api/metadata
+ * Fetches metadata for a given URL (Track, Album, or Playlist)
+ * Enriches data with high-res artwork and lyrics where possible
+ */
 app.get('/api/metadata', async (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: 'URL is required' });
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
 
-  try {
-    const ServiceClass = musicDownloaderCore.identifyService(url);
-    if (!ServiceClass) return res.status(400).json({ error: 'Unsupported service or invalid URL' });
+    try {
+        const ServiceClass = musicDownloaderCore.identifyService(url);
+        if (!ServiceClass)
+            return res.status(400).json({ error: 'Unsupported service or invalid URL' });
 
-    const service = musicDownloaderCore.ENGINES.find(engine => engine instanceof ServiceClass);
-    if (!service) return res.status(500).json({ error: 'Service instance not found' });
+        const service = musicDownloaderCore.ENGINES.find(
+            (engine) => engine instanceof ServiceClass
+        );
+        if (!service) return res.status(500).json({ error: 'Service instance not found' });
 
-    if (typeof service.login === 'function') {
-      try { await service.login(); } catch (e) { console.warn('Login failed:', e.message); }
-    }
-
-    const uriData = MusicDownloaderCore.parseURI(url);
-    const type = uriData ? uriData.type : 'track';
-    
-    let tracks = [];
-    if (type === 'album') {
-        tracks = await service.getAlbumTracks(url);
-        // Enrich Album Artwork (High-Res Fallback) - applied to all tracks
-        try {
-            // Use the first track's artist and album name
-            if (tracks.length > 0) {
-                const firstTrack = tracks[0];
-                const albumArtist = firstTrack.artists ? (Array.isArray(firstTrack.artists) ? firstTrack.artists[0] : firstTrack.artists) : 'Unknown';
-                const albumName = firstTrack.album ? (firstTrack.album.name || firstTrack.album) : 'Unknown';
-                
-                const highResArt = await ArtworkService.getHighResArtwork(albumArtist, albumName);
-                if (highResArt) {
-                    tracks.forEach(track => {
-                        track.cover_url = highResArt;
-                        track.images = [highResArt];
-                        if (track.album) track.album.images = [highResArt];
-                    });
-                }
-            }
-        } catch (e) {
-            console.warn('Album artwork enrichment failed:', e.message);
-        }
-    } else if (type === 'playlist') {
-        tracks = await service.getPlaylistTracks(url);
-        // Enrich Playlist Tracks Artwork (Process all tracks in chunks)
-        try {
-            const chunkSize = 5;
-            for (let i = 0; i < tracks.length; i += chunkSize) {
-                const chunk = tracks.slice(i, i + chunkSize);
-                await Promise.allSettled(chunk.map(async (track) => {
-                     try {
-                         const artist = Array.isArray(track.artists) ? track.artists[0] : track.artists;
-                         const albumName = track.album && track.album.name ? track.album.name : track.album;
-                         const highRes = await ArtworkService.getHighResArtwork(artist, albumName);
-                         if (highRes) {
-                             track.cover_url = highRes;
-                             track.images = [highRes];
-                             if (track.album) track.album.images = [highRes];
-                         }
-                     } catch (e) {}
-                }));
-            }
-        } catch (e) {
-            console.warn('Playlist artwork enrichment failed:', e.message);
-        }
-    } else {
-        const result = await service.getTrack(url);
-        tracks = Array.isArray(result) ? result : [result];
-    }
-
-    const normalized = tracks.map(normalizeTrack);
-    
-    // For single track, try to enrich lyrics and artwork immediately for better UX
-    if (normalized.length === 1) {
-        // Enrich Lyrics
-        if (!normalized[0].lyrics) {
+        if (typeof service.login === 'function') {
             try {
-                const enriched = await LyricsService.enrichWithLyrics(normalized[0]);
-                normalized[0].lyrics = enriched.lyrics;
-                normalized[0].lyricsLRC = enriched.lyricsLRC;
+                await service.login();
+            } catch (e) {
+                console.warn('Login failed:', e.message);
+            }
+        }
+
+        const uriData = MusicDownloaderCore.parseURI(url);
+        const type = uriData ? uriData.type : 'track';
+
+        let tracks = [];
+        if (type === 'album') {
+            tracks = await service.getAlbumTracks(url);
+            // Enrich Album Artwork (High-Res Fallback) - applied to all tracks
+            try {
+                // Use the first track's artist and album name
+                if (tracks.length > 0) {
+                    const firstTrack = tracks[0];
+                    const albumArtist = firstTrack.artists
+                        ? Array.isArray(firstTrack.artists)
+                            ? firstTrack.artists[0]
+                            : firstTrack.artists
+                        : 'Unknown';
+                    const albumName = firstTrack.album
+                        ? firstTrack.album.name || firstTrack.album
+                        : 'Unknown';
+
+                    const highResArt = await ArtworkService.getHighResArtwork(
+                        albumArtist,
+                        albumName
+                    );
+                    if (highResArt) {
+                        tracks.forEach((track) => {
+                            track.cover_url = highResArt;
+                            track.images = [highResArt];
+                            if (track.album) track.album.images = [highResArt];
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Album artwork enrichment failed:', e.message);
+            }
+        } else if (type === 'playlist') {
+            tracks = await service.getPlaylistTracks(url);
+            // Enrich Playlist Tracks Artwork (Process all tracks in chunks)
+            try {
+                const chunkSize = 5;
+                for (let i = 0; i < tracks.length; i += chunkSize) {
+                    const chunk = tracks.slice(i, i + chunkSize);
+                    await Promise.allSettled(
+                        chunk.map(async (track) => {
+                            try {
+                                const artist = Array.isArray(track.artists)
+                                    ? track.artists[0]
+                                    : track.artists;
+                                const albumName =
+                                    track.album && track.album.name
+                                        ? track.album.name
+                                        : track.album;
+                                const highRes = await ArtworkService.getHighResArtwork(
+                                    artist,
+                                    albumName
+                                );
+                                if (highRes) {
+                                    track.cover_url = highRes;
+                                    track.images = [highRes];
+                                    if (track.album) track.album.images = [highRes];
+                                }
+                            } catch (e) {}
+                        })
+                    );
+                }
+            } catch (e) {
+                console.warn('Playlist artwork enrichment failed:', e.message);
+            }
+        } else {
+            try {
+                const result = await service.getTrack(url);
+                tracks = Array.isArray(result) ? result : [result];
+            } catch (e) {
+                console.error('Failed to get track:', e);
+                return res.status(500).json({ error: 'Failed to fetch track metadata' });
+            }
+        }
+
+        const normalized = tracks.map(normalizeTrack);
+
+        // For single track, try to enrich lyrics and artwork immediately for better UX
+        if (normalized.length === 1) {
+            // Enrich Lyrics
+            if (!normalized[0].lyrics) {
+                try {
+                    const enriched = await LyricsService.enrichWithLyrics(normalized[0]);
+                    normalized[0].lyrics = enriched.lyrics;
+                    normalized[0].lyricsLRC = enriched.lyricsLRC;
+                } catch (e) {}
+            }
+            // Enrich Artwork (High-Res Fallback)
+            try {
+                const artist = Array.isArray(normalized[0].artists)
+                    ? normalized[0].artists[0]
+                    : normalized[0].artists;
+                const albumName =
+                    normalized[0].album && normalized[0].album.name
+                        ? normalized[0].album.name
+                        : normalized[0].album;
+                const highResArt = await ArtworkService.getHighResArtwork(artist, albumName);
+                if (highResArt) {
+                    normalized[0].cover_url = highResArt;
+                    normalized[0].images = [highResArt]; // Update internal images array too
+                }
             } catch (e) {}
         }
-        // Enrich Artwork (High-Res Fallback)
-        try {
-            const artist = Array.isArray(normalized[0].artists) ? normalized[0].artists[0] : normalized[0].artists;
-            const albumName = normalized[0].album && normalized[0].album.name ? normalized[0].album.name : normalized[0].album;
-            const highResArt = await ArtworkService.getHighResArtwork(artist, albumName);
-            if (highResArt) {
-                normalized[0].cover_url = highResArt;
-                normalized[0].images = [highResArt]; // Update internal images array too
-            }
-        } catch (e) {}
-    }
 
-    res.json({
-        type,
-        count: normalized.length,
-        tracks: normalized
-    });
-  } catch (error) {
-    console.error('Metadata error:', error);
-    res.status(500).json({ error: error.message });
-  }
+        res.json({
+            type,
+            count: normalized.length,
+            tracks: normalized,
+        });
+    } catch (error) {
+        console.error('Metadata error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// API: Get Lyrics on demand
+/**
+ * GET /api/lyrics
+ * Fetches lyrics on demand for a specific track
+ */
 app.get('/api/lyrics', async (req, res) => {
     const { title, artist, album, duration } = req.query;
     try {
@@ -193,7 +331,11 @@ app.get('/api/lyrics', async (req, res) => {
     }
 });
 
-// API: Stream Audio (Live)
+/**
+ * GET /api/stream
+ * Streams audio from YouTube based on a search query
+ * Used for the "Live Stream" feature
+ */
 app.get('/api/stream', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.status(400).send('Query required');
@@ -209,21 +351,24 @@ app.get('/api/stream', async (req, res) => {
         }
 
         console.log(`[Stream] Found: ${video.title} (${video.videoId})`);
-        
+
         // 2. Stream from YouTube using youtube-dl-exec (piping stdout)
-        // We use 'bestaudio' and pipe the output
-        const streamProcess = youtubedl.exec(video.url, {
-            output: '-',
-            format: 'bestaudio',
-            noCheckCertificates: true,
-            noWarnings: true,
-            preferFreeFormats: true,
-        }, {
-            stdio: ['ignore', 'pipe', 'ignore'] // pipe stdout to res
-        });
+        const streamProcess = youtubedl.exec(
+            video.url,
+            {
+                output: '-',
+                format: 'bestaudio',
+                noCheckCertificates: true,
+                noWarnings: true,
+                preferFreeFormats: true,
+            },
+            {
+                stdio: ['ignore', 'pipe', 'ignore'], // pipe stdout to res
+            }
+        );
 
         // Set headers
-        res.setHeader('Content-Type', 'audio/mpeg'); // or audio/webm depending on source, but browsers handle it
+        res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Transfer-Encoding', 'chunked');
 
         // Pipe to response
@@ -233,102 +378,119 @@ app.get('/api/stream', async (req, res) => {
             console.error('[Stream] Pipe error:', err);
             res.end();
         });
-        
-        // Handle process promise rejection (e.g. non-zero exit code)
-        streamProcess.catch(err => {
-             console.error('[Stream] Process error:', err.message);
-             if (!res.headersSent) res.status(500).send('Stream failed');
-             else res.end();
-        });
-        
-        // Handle process exit?
-        // streamProcess.on('close', ...) - express handles res.end() via pipe usually.
 
+        streamProcess.catch((err) => {
+            console.error('[Stream] Process error:', err.message);
+            if (!res.headersSent) res.status(500).send('Stream failed');
+            else res.end();
+        });
     } catch (error) {
         console.error('[Stream] Error:', error);
         if (!res.headersSent) res.status(500).send(error.message);
     }
 });
 
-// API: Download Music (Bulk/Single)
+/**
+ * POST /api/download
+ * Triggers a download process via the CLI
+ * Supports bulk downloads (Playlists/Albums)
+ */
 app.post('/api/download', (req, res) => {
-  const { urls, quality, format } = req.body; // Expects { urls: string[], quality: string, format: string }
-  
-  if (!urls || !Array.isArray(urls) || urls.length === 0) {
-    return res.status(400).json({ error: 'URLs array is required' });
-  }
+    const { urls, quality, format } = req.body; // Expects { urls: string[], quality: string, format: string }
 
-  const tempConfig = { audio: {} };
-  if (quality) tempConfig.audio.bitrate = parseInt(quality) || 320;
-  if (format) tempConfig.audio.format = format;
-
-  const tempConfigFile = path.join(__dirname, `temp_config_${Date.now()}_${Math.floor(Math.random()*1000)}.json`);
-  fs.writeFileSync(tempConfigFile, JSON.stringify(tempConfig));
-
-  // Create a temporary input file for CLI
-  const tempInputFile = path.join(__dirname, `temp_input_${Date.now()}_${Math.floor(Math.random()*1000)}.txt`);
-  fs.writeFileSync(tempInputFile, urls.join('\n'));
-
-  console.log(`Starting bulk download (${urls.length} items)`);
-
-  const cliProcess = spawn('node', ['cli.js', tempInputFile, '--config', tempConfigFile], {
-    cwd: __dirname,
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-
-  let output = '';
-  cliProcess.stdout.on('data', (data) => {
-    output += data.toString();
-    // Real-time log via SSE could be added here
-  });
-  
-  cliProcess.stderr.on('data', (data) => {
-    console.error(`CLI Error: ${data}`);
-  });
-
-  cliProcess.on('close', (code) => {
-    fs.unlinkSync(tempConfigFile);
-    fs.unlinkSync(tempInputFile);
-    if (code === 0) {
-      // Find the generated file(s) - simplified for now
-      res.json({ success: true, message: 'Download started/completed', logs: output });
-    } else {
-      res.status(500).json({ error: 'Download failed', logs: output });
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ error: 'URLs array is required' });
     }
-  });
+
+    // Create temporary config override
+    const tempConfig = { audio: {} };
+    if (quality) tempConfig.audio.bitrate = parseInt(quality) || 320;
+    if (format) tempConfig.audio.format = format;
+
+    const tempConfigFile = path.join(
+        __dirname,
+        `temp_config_${Date.now()}_${Math.floor(Math.random() * 1000)}.json`
+    );
+    fs.writeFileSync(tempConfigFile, JSON.stringify(tempConfig));
+
+    // Create a temporary input file for CLI
+    const tempInputFile = path.join(
+        __dirname,
+        `temp_input_${Date.now()}_${Math.floor(Math.random() * 1000)}.txt`
+    );
+    fs.writeFileSync(tempInputFile, urls.join('\n'));
+
+    console.log(`Starting bulk download (${urls.length} items)`);
+
+    // Spawn CLI process
+    const cliProcess = spawn('node', ['cli.js', tempInputFile, '--config', tempConfigFile], {
+        cwd: __dirname,
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let output = '';
+    cliProcess.stdout.on('data', (data) => {
+        output += data.toString();
+    });
+
+    cliProcess.stderr.on('data', (data) => {
+        console.error(`CLI Error: ${data}`);
+    });
+
+    cliProcess.on('close', (code) => {
+        // Cleanup temp files
+        try {
+            if (fs.existsSync(tempConfigFile)) fs.unlinkSync(tempConfigFile);
+            if (fs.existsSync(tempInputFile)) fs.unlinkSync(tempInputFile);
+        } catch (e) {
+            console.warn('Failed to clean up temp files', e);
+        }
+
+        if (code === 0) {
+            res.json({ success: true, message: 'Download started/completed', logs: output });
+        } else {
+            res.status(500).json({ error: 'Download failed', logs: output });
+        }
+    });
 });
 
-// API: Download Video (YouTube)
+/**
+ * POST /api/video
+ * Downloads a YouTube video
+ */
 app.post('/api/video', async (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
     const timestamp = Date.now();
+    // Use a cleaner filename template
     const outputTemplate = path.join(DOWNLOAD_DIR, `video_${timestamp}_%(title)s.%(ext)s`);
 
     try {
-        // We use youtube-dl-exec to spawn the process
+        console.log(`[Video] Downloading: ${url}`);
         await youtubedl(url, {
             output: outputTemplate,
             format: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             addMetadata: true,
             noCheckCertificates: true,
             noWarnings: true,
-            addHeader: ['referer:youtube.com', 'user-agent:googlebot']
+            addHeader: ['referer:youtube.com', 'user-agent:googlebot'],
         });
 
-        // Find the file
+        // Find the generated file
         const files = fs.readdirSync(DOWNLOAD_DIR);
-        const videoFile = files.find(f => f.startsWith(`video_${timestamp}_`));
-        
+        // Look for the file matching our timestamp pattern
+        const videoFile = files.find((f) => f.includes(`video_${timestamp}_`));
+
         if (videoFile) {
-            res.json({ 
-                success: true, 
+            console.log(`[Video] Download complete: ${videoFile}`);
+            res.json({
+                success: true,
                 downloadUrl: `/downloads/${videoFile}`,
-                filename: videoFile
+                filename: videoFile,
             });
         } else {
-            res.status(500).json({ error: 'File not found after download' });
+            throw new Error('File not found after download');
         }
     } catch (error) {
         console.error('Video download error:', error);
@@ -336,47 +498,56 @@ app.post('/api/video', async (req, res) => {
     }
 });
 
-// API: Stream/Play Local File
-// This is handled by static file serving /downloads
-
-// API: Get Library (List Downloaded Files)
+/**
+ * GET /api/library
+ * Lists all downloaded media files in the downloads directory
+ */
 app.get('/api/library', async (req, res) => {
     try {
+        if (!fs.existsSync(DOWNLOAD_DIR)) {
+            return res.json({ success: true, files: [] });
+        }
+
         const files = fs.readdirSync(DOWNLOAD_DIR);
-        // Filter for audio/video files (m4a, mp3, flac, wav, ogg, mp4)
-        const mediaFiles = files.filter(file => /\.(m4a|mp3|flac|wav|ogg|mp4)$/i.test(file));
-        
-        // Simple metadata extraction from filename if possible
-        const library = mediaFiles.map(file => {
-             // Try to parse "Artist - Title.ext"
-             const ext = path.extname(file);
-             const basename = path.basename(file, ext);
-             
-             // Check if it's a video file
-             const isVideo = /\.(mp4|mkv|webm)$/i.test(file);
-             
-             // Heuristic: most files from this tool are "Artist - Title" or just Title if from YouTube
-             // But CLI usually outputs: "Artist - Title.m4a"
-             const parts = basename.split(' - ');
-             
-             let artist = 'Unknown Artist';
-             let title = basename;
-             
-             if (parts.length >= 2) {
-                 artist = parts[0];
-                 title = parts.slice(1).join(' - ');
-             }
-             
-             return {
-                 filename: file,
-                 url: `/downloads/${encodeURIComponent(file)}`,
-                 artist,
-                 title,
-                 type: isVideo ? 'video' : 'audio',
-                 ext: ext.substring(1)
-             };
+        // Filter for audio/video files (m4a, mp3, flac, wav, ogg, mp4, webm, mkv)
+        const mediaFiles = files.filter((file) =>
+            /\.(m4a|mp3|flac|wav|ogg|mp4|webm|mkv)$/i.test(file)
+        );
+
+        // Simple metadata extraction from filename
+        const library = mediaFiles.map((file) => {
+            const ext = path.extname(file);
+            const basename = path.basename(file, ext);
+            const isVideo = /\.(mp4|mkv|webm)$/i.test(file);
+
+            // Try to parse "Artist - Title"
+            const parts = basename.split(' - ');
+
+            let artist = 'Unknown Artist';
+            let title = basename;
+
+            // Basic heuristic for "Artist - Title" format
+            if (parts.length >= 2) {
+                artist = parts[0];
+                title = parts.slice(1).join(' - ');
+            }
+
+            // Clean up video filenames if they match our pattern
+            if (isVideo && title.startsWith(`video_`)) {
+                // Remove "video_timestamp_" prefix
+                title = title.replace(/^video_\d+_/, '');
+            }
+
+            return {
+                filename: file,
+                url: `/downloads/${encodeURIComponent(file)}`,
+                artist,
+                title,
+                type: isVideo ? 'video' : 'audio',
+                ext: ext.substring(1),
+            };
         });
-        
+
         res.json({ success: true, files: library });
     } catch (error) {
         console.error('Library error:', error);
@@ -384,6 +555,9 @@ app.get('/api/library', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// ============================================================================
+// Start Server
+// ============================================================================
+app.listen(PORT, HOST, () => {
+    console.log(`Server running at http://${HOST}:${PORT}`);
 });

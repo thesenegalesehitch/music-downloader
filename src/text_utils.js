@@ -19,17 +19,19 @@
  * ]); // [ "hello world", "hey im david whats up" ]
  */
 function stripText(data) {
-  return [
-    ...new Set(
-      data.reduce(
-        (all, text) =>
-          (text = text.normalize('NFD').replace(/\p{Diacritic}|[^\p{Letter} \p{Number}]/gu, ''))
-            ? all.concat([text.replace(/\s{2,}/g, ' ').toLowerCase()])
-            : all,
-        [],
-      ),
-    ),
-  ];
+    return [
+        ...new Set(
+            data.reduce(
+                (all, text) =>
+                    (text = text
+                        .normalize('NFD')
+                        .replace(/\p{Diacritic}|[^\p{Letter} \p{Number}]/gu, ''))
+                        ? all.concat([text.replace(/\s{2,}/g, ' ').toLowerCase()])
+                        : all,
+                []
+            )
+        ),
+    ];
 }
 
 /**
@@ -56,9 +58,11 @@ function stripText(data) {
  * ); // 100
  */
 function getWeight(a, b) {
-  return (
-    ((b = b.join(' ').split(' ')), a.map(v => v.split(' ').every(p => b.includes(p))).filter(v => !!v).length / a.length) * 100
-  );
+    return (
+        ((b = b.join(' ').split(' ')),
+        a.map((v) => v.split(' ').every((p) => b.includes(p))).filter((v) => !!v).length /
+            a.length) * 100
+    );
 }
 
-export default {stripText, getWeight};
+export default { stripText, getWeight };

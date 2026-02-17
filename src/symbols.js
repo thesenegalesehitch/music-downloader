@@ -4,8 +4,8 @@ const errorCode = Symbol('MusicDownloaderErrorCode');
 const errorStack = Symbol('MusicDownloaderErrorStack');
 
 export default {
-  meta,
-  fileId,
-  errorCode,
-  errorStack,
+    meta,
+    fileId,
+    errorCode,
+    errorStack,
 };

@@ -14,7 +14,7 @@ We take the security of music-downloader seriously. If you believe you have foun
 ### How to Report
 
 1. **Do NOT** open a public GitHub issue
-2. Email the vulnerability report to: **alexandre.ndour@example.com**
+2. Email the vulnerability report to: **ndouralexandre09@gmail.com**
 3. Include a detailed description of the vulnerability
 4. Include steps to reproduce the issue
 5. Include any relevant proof-of-concept code
@@ -100,4 +100,4 @@ This tool is intended for personal use and educational purposes. Users are respo
 
 ## Contact
 
-For security concerns, please contact: **alexandre.ndour@example.com**
+For security concerns, please contact: **aa.ndour5@isepat.edu.sn**
