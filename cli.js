@@ -14,6 +14,7 @@ process.on('warning', (warning) => {
     console.warn(`Warning: ${warning.message}`);
 });
 
+import 'dotenv/config';
 import xurl from 'url';
 import util from 'util';
 import xpath from 'path';

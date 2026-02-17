@@ -116,11 +116,21 @@ export class DeezerCore {
         return this._altApiCall(method, opts);
     }
 
+    #arl = null;
+
+    setArl(arl) {
+        this.#arl = arl;
+    }
+
     async _altApiCall(method, opts) {
+        const cookie = [];
+        if (this.#altAuth?.sessionId) cookie.push(`sid=${this.#altAuth.sessionId}`);
+        if (this.#arl) cookie.push(`arl=${this.#arl}`);
+
         const response = await this.wrappedCall(
             this.requestObject.post(this.altApiUrl, {
                 headers: {
-                    ...(this.#altAuth?.sessionId && { cookie: `sid=${this.#altAuth.sessionId}` }),
+                    cookie: cookie.join('; '),
                 },
                 searchParams: { method, api_version: '1.0', api_token: this.#altAuth.token ?? '' },
                 json: { lang: 'en', ...opts },
@@ -198,6 +208,7 @@ export default class Deezer {
 
     constructor(config) {
         if (config && 'retries' in config) this.#store.core.totalTrials = config.retries + 1;
+        if (config && 'arl' in config) this.#store.core.setArl(config.arl);
     }
 
     // eslint-disable-next-line no-unused-vars
