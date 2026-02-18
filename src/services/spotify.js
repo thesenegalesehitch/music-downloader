@@ -9,429 +9,472 @@ import symbols from '../symbols.js';
 const validUriTypes = ['track', 'album', 'artist', 'playlist'];
 
 export default class Spotify {
-  static [symbols.meta] = {
-    ID: 'spotify',
-    DESC: 'Spotify',
-    PROPS: {
-      isQueryable: true,
-      isSearchable: false,
-      isSourceable: false,
-    },
-    // https://www.debuggex.com/r/DgqrkwF-9XXceZ1x
-    // Updated to support optional locale segments like /intl-fr/, /intl-en/, etc.
-    VALID_URL:
-      /(?:(?:(?:https?:\/\/)?(?:www\.)?)(?:(?:(?:open|play|embed)\.)spotify\.com)\/intl-[a-z]{2}\/(?:artist|track|album|playlist)\/(?:[0-9A-Za-z]{22}))|(?:(?:https?:\/\/)?(?:www\.)?(?:(?:open|play|embed)\.)spotify\.com\/(?:artist|track|album|playlist)\/(?:[0-9A-Za-z]{22}))|(?:spotify:(?:artist|track|album|playlist):(?:[0-9A-Za-z]{22}))/,
-    PROP_SCHEMA: {
-      expiry: {type: 'integer'},
-      accessToken: {type: 'string'},
-      refreshToken: {type: 'string'},
-    },
-  };
-
-  [symbols.meta] = Spotify[symbols.meta];
-
-  #store = {
-    core: null,
-    AuthServer: null,
-    serverOpts: null,
-    cache: new NodeCache(),
-    expiry: null,
-    isAuthenticated: false,
-  };
-
-  constructor(config, authServer, serverOpts) {
-    if (!config) config = {};
-    [this.#store.AuthServer, this.#store.serverOpts] = [authServer, serverOpts];
-    
-    // Allow empty credentials - Spotify will just not be usable without them
-    // Users can still use Deezer and Apple Music
-    if (!config.clientId || !config.clientSecret) {
-      console.warn('[Spotify] No credentials provided - Spotify service will not be available');
-      this.#store.core = null;
-      return;
-    }
-    
-    this.#store.core = new SpotifyWebApi({
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      refreshToken: config.refreshToken,
-    });
-  }
-
-  loadConfig(config) {
-    if (!this.#store.core) return;
-    if (config.expiry) this.#store.expiry = config.expiry;
-    if (config.accessToken) this.#store.core.setAccessToken(config.accessToken);
-    if (config.refreshToken) this.#store.core.setRefreshToken(config.refreshToken);
-  }
-
-  hasOnceAuthed() {
-    return this.#store.isAuthenticated && this.#store.core !== null;
-  }
-
-  accessTokenIsValid() {
-    return this.#store.core !== null && Date.now() < this.#store.expiry;
-  }
-
-  async isAuthed() {
-    return this.#store.core !== null && this.accessTokenIsValid();
-  }
-
-  newAuth() {
-    const server = new this.#store.AuthServer({...this.#store.serverOpts, serviceName: 'Spotify'});
-    this.#store.core.setRedirectURI(server.getRedirectURL());
-    const scope = ['user-read-private', 'user-read-email'];
-    const authCode = Promise.resolve(server.getCode());
-    return {
-      getUrl: server.init(state => this.#store.core.createAuthorizeURL(scope, state)),
-      userToAuth: async () => {
-        const code = await authCode;
-        const data = await this.#store.core.authorizationCodeGrant(code);
-        this.setExpiry(data.body.expires_in);
-        this.#store.core.setRefreshToken(data.body.refresh_token);
-        this.#store.core.setAccessToken(data.body.access_token);
-        this.#store.isAuthenticated = true;
-        return {refreshToken: data.body.refresh_token, expiry: this.#store.expiry};
-      },
+    static [symbols.meta] = {
+        ID: 'spotify',
+        DESC: 'Spotify',
+        PROPS: {
+            isQueryable: true,
+            isSearchable: false,
+            isSourceable: false,
+        },
+        // https://www.debuggex.com/r/DgqrkwF-9XXceZ1x
+        // Updated to support optional locale segments like /intl-fr/, /intl-en/, etc.
+        VALID_URL:
+            /(?:(?:(?:https?:\/\/)?(?:www\.)?)(?:(?:(?:open|play|embed)\.)spotify\.com)\/intl-[a-z]{2}\/(?:artist|track|album|playlist)\/(?:[0-9A-Za-z]{22}))|(?:(?:https?:\/\/)?(?:www\.)?(?:(?:open|play|embed)\.)spotify\.com\/(?:artist|track|album|playlist)\/(?:[0-9A-Za-z]{22}))|(?:spotify:(?:artist|track|album|playlist):(?:[0-9A-Za-z]{22}))/,
+        PROP_SCHEMA: {
+            expiry: { type: 'integer' },
+            accessToken: { type: 'string' },
+            refreshToken: { type: 'string' },
+        },
     };
-  }
 
-  setExpiry(expiry) {
-    this.#store.expiry = Date.now() + expiry * 1000;
-  }
+    [symbols.meta] = Spotify[symbols.meta];
 
-  canTryLogin() {
-    return this.#store.core !== null && !!this.#store.core.getRefreshToken();
-  }
-
-  hasProps() {
-    return this.#store.core !== null && this.#store.isAuthenticated;
-  }
-
-  getProps() {
-    if (!this.#store.core) return { expiry: null, accessToken: null, refreshToken: null };
-    return {
-      expiry: this.#store.expiry,
-      accessToken: this.#store.core.getAccessToken(),
-      refreshToken: this.#store.core.getRefreshToken(),
+    #store = {
+        core: null,
+        AuthServer: null,
+        serverOpts: null,
+        cache: new NodeCache(),
+        expiry: null,
+        isAuthenticated: false,
     };
-  }
 
-  async login(config) {
-    if (!this.#store.core) return false;
-    if (config) this.loadConfig(config);
-    if (!this.accessTokenIsValid()) {
-      const data = await this.#store.core.refreshAccessToken();
-      this.#store.core.setAccessToken(data.body.access_token);
-      this.setExpiry(data.body.expires_in);
+    constructor(config, authServer, serverOpts) {
+        if (!config) config = {};
+        [this.#store.AuthServer, this.#store.serverOpts] = [authServer, serverOpts];
+
+        // Allow empty credentials - Spotify will just not be usable without them
+        // Users can still use Deezer and Apple Music
+        if (!config.clientId || !config.clientSecret) {
+            console.warn(
+                '[Spotify] No credentials provided - Spotify service will not be available'
+            );
+            this.#store.core = null;
+            return;
+        }
+
+        this.#store.core = new SpotifyWebApi({
+            clientId: config.clientId,
+            clientSecret: config.clientSecret,
+            refreshToken: config.refreshToken,
+        });
     }
-    return (this.#store.isAuthenticated = true);
-  }
 
-  validateType(uri) {
-    const {type} = spotifyUri.parse(uri);
-    if (!['local', ...validUriTypes].includes(type)) throw new Error(`Spotify URI type [${type}] is invalid.`);
-    return uri;
-  }
-
-  identifyType(uri) {
-    return this.parseURI(uri).type;
-  }
-
-  parseURI(uri) {
-    const parsed = spotifyUri.parse(this.validateType(uri));
-    parsed.url = spotifyUri.formatOpenURL(parsed);
-    parsed.uri = spotifyUri.formatURI(parsed);
-    return parsed;
-  }
-
-  /**
-   * Wraps track metadata from Spotify API response into a standardized format
-   * 
-   * This function extracts all available metadata from a Spotify track and
-   * converts it into a format compatible with music-downloader metadata embedding system.
-   * 
-   * **Metadata Fields Extracted:**
-   * 
-   * **Basic Track Info:**
-   * - `id`: Spotify track ID
-   * - `uri`: Spotify URI (spotify:track:...)
-   * - `link`: Spotify web URL
-   * - `name`: Track name
-   * - `duration`: Duration in milliseconds
-   * 
-   * **Artist Information:**
-   * - `artists`: Array of artist names
-   * - `featuring`: Featured artists (artists after the first one)
-   * - `artistSortNames`: Sort-formatted artist names (e.g., "Lipa, Dua" for "Dua Lipa")
-   * - `album_artist`: Primary album artist name
-   * 
-   * **Album Information:**
-   * - `album`: Album name
-   * - `album_uri`: Spotify album URI
-   * - `album_type`: Album type (album, single, compilation)
-   * - `albumSortName`: Album sort name (used for proper alphabetizing)
-   * - `images`: Album artwork array
-   * - `getImage(width, height)`: Function to get artwork URL of specified dimensions
-   * 
-   * **Track Details:**
-   * - `track_number`: Track number on album
-   * - `total_tracks`: Total tracks on album
-   * - `disc_number`: Disc number
-   * - `total_discs`: Total discs in album
-   * - `release_date`: Album release date
-   * 
-   * **Content Classification:**
-   * - `contentRating`: Content advisory (explicit/clean/inoffensive)
-   * - `genres`: Album genres
-   * - `compilation`: Boolean flag for compilation albums
-   * 
-   * **Identifiers & Catalog:**
-   * - `isrc`: International Standard Recording Code
-   * - `label`: Record label name
-   * - `copyrights`: Copyright information
-   * 
-   * **Spotify-Specific Metadata:**
-   * - `spotifyId`: Spotify track ID (same as id)
-   * - `spotifyAlbumId`: Spotify album ID
-   * - `popularity`: Track popularity score (0-100)
-   * - `preview_url`: 30-second audio preview URL
-   * 
-   * **Known Limitations (Spotify API):**
-   * - Lyrics not available directly - requires Musixmatch API integration
-   * - Composer information not provided - consider MusicBrainz fallback
-   * - Explicit flag returns 'explicit' or 'inoffensive' (not 'clean')
-   * - Apple Music-specific fields not available
-   * 
-   * @param {Object} trackInfo - Spotify track API response object
-   * @param {Object} albumInfo - Album metadata (defaults to trackInfo.album)
-   * @returns {Object|null} Standardized track metadata object or null if trackInfo is falsy
-   */
-  wrapTrackMeta(trackInfo, albumInfo = trackInfo.album) {
-    // Extract featured artists (Spotify uses 'artist' type for primary, 'featured' appears in artist name for remixes)
-    // For standard tracks, we can check if there are multiple artists with different roles
-    const featuring = trackInfo.artists && trackInfo.artists.length > 1
-      ? trackInfo.artists.filter((_, index) => index > 0).map(artist => artist.name)
-      : [];
-
-    // Extract artist sort names
-    const artistSortNames = trackInfo.artists?.map(artist => 
-      artist.name.split(' ').reverse().join(', ') // Simple sort name transformation
-    ) || [];
-
-    return trackInfo
-      ? {
-          id: trackInfo.id,
-          uri: trackInfo.uri,
-          link: trackInfo.external_urls.spotify,
-          name: trackInfo.name,
-          artists: trackInfo.artists.map(artist => artist.name),
-          featuring,
-          artistSortNames,
-          album: albumInfo.name,
-          album_uri: albumInfo.uri,
-          album_type: albumInfo.type,
-          albumSortName: albumInfo.name,
-          images: albumInfo.images,
-          duration: trackInfo.duration_ms,
-          album_artist: albumInfo.artists[0]?.name || '',
-          track_number: trackInfo.track_number,
-          total_tracks: albumInfo.ntracks,
-          release_date: albumInfo.release_date,
-          disc_number: trackInfo.disc_number,
-          total_discs: albumInfo.tracks?.reduce((acc, track) => Math.max(acc, track.disc_number), 1) || 1,
-          contentRating: trackInfo.explicit === true ? 'explicit' : 'inoffensive',
-          lyrics: null, // Spotify doesn't provide lyrics directly - requires Musixmatch API integration
-          isrc: (trackInfo.external_ids || {}).isrc,
-          genres: albumInfo.genres,
-          label: albumInfo.label,
-          copyrights: albumInfo.copyrights,
-          composers: null, // Spotify API doesn't provide composer info - consider MusicBrainz fallback
-          compilation: albumInfo.type === 'compilation',
-          getImage: albumInfo.getImage,
-          // Spotify specific
-          spotifyId: trackInfo.id,
-          spotifyAlbumId: albumInfo.id,
-          popularity: trackInfo.popularity,
-          // Subscription quality metadata
-          preview_url: trackInfo.preview_url,
-        }
-      : null;
-  }
-
-  wrapAlbumData(albumObject) {
-    return albumObject
-      ? {
-          id: albumObject.id,
-          uri: albumObject.uri,
-          name: albumObject.name,
-          artists: albumObject.artists.map(artist => artist.name),
-          type: albumObject.artists[0].id === '0LyfQWJT6nXafLPZqxe9Of' ? 'compilation' : albumObject.album_type,
-          genres: albumObject.genres,
-          copyrights: albumObject.copyrights,
-          images: albumObject.images,
-          label: albumObject.label,
-          release_date: new Date(albumObject.release_date),
-          ntracks: albumObject.total_tracks,
-          tracks: albumObject.tracks.items,
-          getImage(width, height) {
-            const {images} = albumObject;
-            return images
-              .sort((a, b) => (a.width > b.width && a.height > b.height ? 1 : -1))
-              .find((image, index) => index === images.length - 1 || (image.height >= height && image.width >= width)).url;
-          },
-        }
-      : null;
-  }
-
-  wrapArtistData(artistObject) {
-    return artistObject
-      ? {
-          id: artistObject.id,
-          uri: artistObject.uri,
-          name: artistObject.name,
-          genres: artistObject.genres,
-          nalbum: null,
-          followers: artistObject.followers.total,
-        }
-      : null;
-  }
-
-  wrapPlaylistData(playlistObject) {
-    return playlistObject
-      ? {
-          id: playlistObject.id,
-          uri: playlistObject.uri,
-          name: playlistObject.name,
-          followers: playlistObject.followers.total,
-          description: playlistObject.description,
-          owner_id: playlistObject.owner.id,
-          owner_name: playlistObject.owner.display_name,
-          type: `${playlistObject.public ? 'Public' : 'Private'}${playlistObject.collaborative ? ' (Collaborative)' : ''}`,
-          ntracks: playlistObject.tracks.total,
-          tracks: playlistObject.tracks.items.map(item => item.track),
-        }
-      : null;
-  }
-
-  async processData(uris, max, coreFn) {
-    const wasArr = Array.isArray(uris);
-    uris = (wasArr ? uris : [uris]).map(uri => {
-      const parsedURI = this.parseURI(uri);
-      uri = spotifyUri.formatURI(parsedURI);
-      if (parsedURI.type === 'local') return [, {[symbols.errorStack]: {code: 1, uri}}];
-      return [parsedURI.id, this.#store.cache.get(uri)];
-    });
-    const ids = uris.filter(([, value]) => !value).map(([id]) => id);
-    let results = new Map();
-    for (const [id, result] of uris) {
-      results.set(id, result);
+    loadConfig(config) {
+        if (!this.#store.core) return;
+        if (config.expiry) this.#store.expiry = config.expiry;
+        if (config.accessToken) this.#store.core.setAccessToken(config.accessToken);
+        if (config.refreshToken) this.#store.core.setRefreshToken(config.refreshToken);
     }
-    uris = Object.fromEntries(uris);
-    if (ids.length)
-      (
-        await Promise.mapSeries(
-          ((f, c) => ((c = Math.min(c, f.length)), [...Array(Math.ceil(f.length / c))].map((_, i) => f.slice(i * c, i * c + c))))(
-            ids,
-            max || Infinity,
-          ),
-          coreFn,
-        )
-      )
-        .flat(1)
-        .forEach(item => (!item ? null : (this.#store.cache.set(item.uri, item), results.set(item.id, item))));
-    results = [...results.values()];
-    return !wasArr ? results[0] : results;
-  }
 
-  async getTrack(uris, country) {
-    return this.processData(uris, 50, async ids => {
-      const tracks = (await this.#store.core.getTracks(ids, {market: country})).body.tracks.filter(Boolean);
-      await this.getAlbum(
-        tracks.map(track => track.album.uri),
-        country,
-      );
-      return Promise.mapSeries(tracks, async track => this.wrapTrackMeta(track, await this.getAlbum(track.album.uri, country)));
-    });
-  }
+    hasOnceAuthed() {
+        return this.#store.isAuthenticated && this.#store.core !== null;
+    }
 
-  async getAlbum(uris, country) {
-    return this.processData(uris, 20, async ids =>
-      Promise.mapSeries((await this.#store.core.getAlbums(ids, {market: country})).body.albums, async album =>
-        this.wrapAlbumData(album),
-      ),
-    );
-  }
+    accessTokenIsValid() {
+        return this.#store.core !== null && Date.now() < this.#store.expiry;
+    }
 
-  async getAlbumTracks(uri, country) {
-    return this.getTrack((await this.getAlbum(uri, country)).tracks.map(item => item.uri));
-  }
+    async isAuthed() {
+        return this.#store.core !== null && this.accessTokenIsValid();
+    }
 
-  async getArtist(uris) {
-    return this.processData(uris, 50, async ids =>
-      Promise.mapSeries((await this.#store.core.getArtists(ids)).body.artists, async artist => this.wrapArtistData(artist)),
-    );
-  }
+    newAuth() {
+        const server = new this.#store.AuthServer({
+            ...this.#store.serverOpts,
+            serviceName: 'Spotify',
+        });
+        this.#store.core.setRedirectURI(server.getRedirectURL());
+        const scope = ['user-read-private', 'user-read-email'];
+        const authCode = Promise.resolve(server.getCode());
+        return {
+            getUrl: server.init((state) => this.#store.core.createAuthorizeURL(scope, state)),
+            userToAuth: async () => {
+                const code = await authCode;
+                const data = await this.#store.core.authorizationCodeGrant(code);
+                this.setExpiry(data.body.expires_in);
+                this.#store.core.setRefreshToken(data.body.refresh_token);
+                this.#store.core.setAccessToken(data.body.access_token);
+                this.#store.isAuthenticated = true;
+                return { refreshToken: data.body.refresh_token, expiry: this.#store.expiry };
+            },
+        };
+    }
 
-  async getPlaylist(uri, country) {
-    const parsedURI = this.parseURI(uri);
-    uri = spotifyUri.formatURI(parsedURI);
-    if (!this.#store.cache.has(uri))
-      this.#store.cache.set(
-        uri,
-        this.wrapPlaylistData((await this.#store.core.getPlaylist(parsedURI.id, {market: country})).body),
-      );
-    return this.#store.cache.get(uri);
-  }
+    setExpiry(expiry) {
+        this.#store.expiry = Date.now() + expiry * 1000;
+    }
 
-  async getPlaylistTracks(uri, country) {
-    const {id} = this.parseURI(uri);
-    return this.getTrack(
-      (
-        await this._gatherCompletely(
-          (offset, limit) => this.#store.core.getPlaylistTracks(id, {offset, limit, market: country}),
-          {offset: 0, limit: 50, sel: 'items'},
-        )
-      )
-        .filter(item => !!(item.track && item.track.name))
-        .map(item => item.track.uri),
-      country,
-    );
-  }
+    canTryLogin() {
+        return this.#store.core !== null && !!this.#store.core.getRefreshToken();
+    }
 
-  async getArtistAlbums(uri, country) {
-    const {id} = this.parseURI(uri);
-    uri = `spotify:artist_albums:${id}`;
-    if (!this.#store.cache.has(uri))
-      this.#store.cache.set(
-        uri,
-        await this.getAlbum(
-          (
-            await this._gatherCompletely(
-              (offset, limit) =>
-                this.#store.core.getArtistAlbums(id, {offset, limit, country, include_groups: 'album,single,compilation'}),
-              {offset: 0, limit: 50, sel: 'items'},
+    hasProps() {
+        return this.#store.core !== null && this.#store.isAuthenticated;
+    }
+
+    getProps() {
+        if (!this.#store.core) return { expiry: null, accessToken: null, refreshToken: null };
+        return {
+            expiry: this.#store.expiry,
+            accessToken: this.#store.core.getAccessToken(),
+            refreshToken: this.#store.core.getRefreshToken(),
+        };
+    }
+
+    async login(config) {
+        if (!this.#store.core) return false;
+        if (config) this.loadConfig(config);
+        if (!this.accessTokenIsValid()) {
+            const data = await this.#store.core.refreshAccessToken();
+            this.#store.core.setAccessToken(data.body.access_token);
+            this.setExpiry(data.body.expires_in);
+        }
+        return (this.#store.isAuthenticated = true);
+    }
+
+    validateType(uri) {
+        const { type } = spotifyUri.parse(uri);
+        if (!['local', ...validUriTypes].includes(type))
+            throw new Error(`Spotify URI type [${type}] is invalid.`);
+        return uri;
+    }
+
+    identifyType(uri) {
+        return this.parseURI(uri).type;
+    }
+
+    parseURI(uri) {
+        const parsed = spotifyUri.parse(this.validateType(uri));
+        parsed.url = spotifyUri.formatOpenURL(parsed);
+        parsed.uri = spotifyUri.formatURI(parsed);
+        return parsed;
+    }
+
+    /**
+     * Wraps track metadata from Spotify API response into a standardized format
+     *
+     * This function extracts all available metadata from a Spotify track and
+     * converts it into a format compatible with music-downloader metadata embedding system.
+     *
+     * **Metadata Fields Extracted:**
+     *
+     * **Basic Track Info:**
+     * - `id`: Spotify track ID
+     * - `uri`: Spotify URI (spotify:track:...)
+     * - `link`: Spotify web URL
+     * - `name`: Track name
+     * - `duration`: Duration in milliseconds
+     *
+     * **Artist Information:**
+     * - `artists`: Array of artist names
+     * - `featuring`: Featured artists (artists after the first one)
+     * - `artistSortNames`: Sort-formatted artist names (e.g., "Lipa, Dua" for "Dua Lipa")
+     * - `album_artist`: Primary album artist name
+     *
+     * **Album Information:**
+     * - `album`: Album name
+     * - `album_uri`: Spotify album URI
+     * - `album_type`: Album type (album, single, compilation)
+     * - `albumSortName`: Album sort name (used for proper alphabetizing)
+     * - `images`: Album artwork array
+     * - `getImage(width, height)`: Function to get artwork URL of specified dimensions
+     *
+     * **Track Details:**
+     * - `track_number`: Track number on album
+     * - `total_tracks`: Total tracks on album
+     * - `disc_number`: Disc number
+     * - `total_discs`: Total discs in album
+     * - `release_date`: Album release date
+     *
+     * **Content Classification:**
+     * - `contentRating`: Content advisory (explicit/clean/inoffensive)
+     * - `genres`: Album genres
+     * - `compilation`: Boolean flag for compilation albums
+     *
+     * **Identifiers & Catalog:**
+     * - `isrc`: International Standard Recording Code
+     * - `label`: Record label name
+     * - `copyrights`: Copyright information
+     *
+     * **Spotify-Specific Metadata:**
+     * - `spotifyId`: Spotify track ID (same as id)
+     * - `spotifyAlbumId`: Spotify album ID
+     * - `popularity`: Track popularity score (0-100)
+     * - `preview_url`: 30-second audio preview URL
+     *
+     * **Known Limitations (Spotify API):**
+     * - Lyrics not available directly - requires Musixmatch API integration
+     * - Composer information not provided - consider MusicBrainz fallback
+     * - Explicit flag returns 'explicit' or 'inoffensive' (not 'clean')
+     * - Apple Music-specific fields not available
+     *
+     * @param {Object} trackInfo - Spotify track API response object
+     * @param {Object} albumInfo - Album metadata (defaults to trackInfo.album)
+     * @returns {Object|null} Standardized track metadata object or null if trackInfo is falsy
+     */
+    wrapTrackMeta(trackInfo, albumInfo = trackInfo.album) {
+        // Extract featured artists (Spotify uses 'artist' type for primary, 'featured' appears in artist name for remixes)
+        // For standard tracks, we can check if there are multiple artists with different roles
+        const featuring =
+            trackInfo.artists && trackInfo.artists.length > 1
+                ? trackInfo.artists.filter((_, index) => index > 0).map((artist) => artist.name)
+                : [];
+
+        // Extract artist sort names
+        const artistSortNames =
+            trackInfo.artists?.map(
+                (artist) => artist.name.split(' ').reverse().join(', ') // Simple sort name transformation
+            ) || [];
+
+        return trackInfo
+            ? {
+                  id: trackInfo.id,
+                  uri: trackInfo.uri,
+                  link: trackInfo.external_urls.spotify,
+                  name: trackInfo.name,
+                  artists: trackInfo.artists.map((artist) => artist.name),
+                  featuring,
+                  artistSortNames,
+                  album: albumInfo.name,
+                  album_uri: albumInfo.uri,
+                  album_type: albumInfo.type,
+                  albumSortName: albumInfo.name,
+                  images: albumInfo.images,
+                  duration: trackInfo.duration_ms,
+                  album_artist: albumInfo.artists[0]?.name || '',
+                  track_number: trackInfo.track_number,
+                  total_tracks: albumInfo.ntracks,
+                  release_date: albumInfo.release_date,
+                  disc_number: trackInfo.disc_number,
+                  total_discs:
+                      albumInfo.tracks?.reduce(
+                          (acc, track) => Math.max(acc, track.disc_number),
+                          1
+                      ) || 1,
+                  contentRating: trackInfo.explicit === true ? 'explicit' : 'inoffensive',
+                  lyrics: null, // Spotify doesn't provide lyrics directly - requires Musixmatch API integration
+                  isrc: (trackInfo.external_ids || {}).isrc,
+                  genres: albumInfo.genres,
+                  label: albumInfo.label,
+                  copyrights: albumInfo.copyrights,
+                  composers: null, // Spotify API doesn't provide composer info - consider MusicBrainz fallback
+                  compilation: albumInfo.type === 'compilation',
+                  getImage: albumInfo.getImage,
+                  // Spotify specific
+                  spotifyId: trackInfo.id,
+                  spotifyAlbumId: albumInfo.id,
+                  popularity: trackInfo.popularity,
+                  // Subscription quality metadata
+                  preview_url: trackInfo.preview_url,
+              }
+            : null;
+    }
+
+    wrapAlbumData(albumObject) {
+        return albumObject
+            ? {
+                  id: albumObject.id,
+                  uri: albumObject.uri,
+                  name: albumObject.name,
+                  artists: albumObject.artists.map((artist) => artist.name),
+                  type:
+                      albumObject.artists[0].id === '0LyfQWJT6nXafLPZqxe9Of'
+                          ? 'compilation'
+                          : albumObject.album_type,
+                  genres: albumObject.genres,
+                  copyrights: albumObject.copyrights,
+                  images: albumObject.images,
+                  label: albumObject.label,
+                  release_date: new Date(albumObject.release_date),
+                  ntracks: albumObject.total_tracks,
+                  tracks: albumObject.tracks.items,
+                  getImage(width, height) {
+                      const { images } = albumObject;
+                      return images
+                          .sort((a, b) => (a.width > b.width && a.height > b.height ? 1 : -1))
+                          .find(
+                              (image, index) =>
+                                  index === images.length - 1 ||
+                                  (image.height >= height && image.width >= width)
+                          ).url;
+                  },
+              }
+            : null;
+    }
+
+    wrapArtistData(artistObject) {
+        return artistObject
+            ? {
+                  id: artistObject.id,
+                  uri: artistObject.uri,
+                  name: artistObject.name,
+                  genres: artistObject.genres,
+                  nalbum: null,
+                  followers: artistObject.followers.total,
+              }
+            : null;
+    }
+
+    wrapPlaylistData(playlistObject) {
+        return playlistObject
+            ? {
+                  id: playlistObject.id,
+                  uri: playlistObject.uri,
+                  name: playlistObject.name,
+                  followers: playlistObject.followers.total,
+                  description: playlistObject.description,
+                  owner_id: playlistObject.owner.id,
+                  owner_name: playlistObject.owner.display_name,
+                  type: `${playlistObject.public ? 'Public' : 'Private'}${playlistObject.collaborative ? ' (Collaborative)' : ''}`,
+                  ntracks: playlistObject.tracks.total,
+                  tracks: playlistObject.tracks.items.map((item) => item.track),
+              }
+            : null;
+    }
+
+    async processData(uris, max, coreFn) {
+        const wasArr = Array.isArray(uris);
+        uris = (wasArr ? uris : [uris]).map((uri) => {
+            const parsedURI = this.parseURI(uri);
+            uri = spotifyUri.formatURI(parsedURI);
+            if (parsedURI.type === 'local')
+                return [undefined, { [symbols.errorStack]: { code: 1, uri } }];
+            return [parsedURI.id, this.#store.cache.get(uri)];
+        });
+        const ids = uris.filter(([, value]) => !value).map(([id]) => id);
+        let results = new Map();
+        for (const [id, result] of uris) {
+            results.set(id, result);
+        }
+        uris = Object.fromEntries(uris);
+        if (ids.length)
+            (
+                await Promise.mapSeries(
+                    ((f, c) => (
+                        (c = Math.min(c, f.length)),
+                        [...Array(Math.ceil(f.length / c))].map((_, i) => f.slice(i * c, i * c + c))
+                    ))(ids, max || Infinity),
+                    coreFn
+                )
             )
-          )
-            .filter(item => item.name)
-            .map(album => album.uri),
-          country,
-        ),
-      );
-    return this.#store.cache.get(uri);
-  }
+                .flat(1)
+                .forEach((item) =>
+                    !item
+                        ? null
+                        : (this.#store.cache.set(item.uri, item), results.set(item.id, item))
+                );
+        results = [...results.values()];
+        return !wasArr ? results[0] : results;
+    }
 
-  async checkIsActivelyListening() {
-    return (await this.#store.core.getMyCurrentPlaybackState()).statusCode !== '204';
-  }
+    async getTrack(uris, country) {
+        return this.processData(uris, 50, async (ids) => {
+            const tracks = (
+                await this.#store.core.getTracks(ids, { market: country })
+            ).body.tracks.filter(Boolean);
+            await this.getAlbum(
+                tracks.map((track) => track.album.uri),
+                country
+            );
+            return Promise.mapSeries(tracks, async (track) =>
+                this.wrapTrackMeta(track, await this.getAlbum(track.album.uri, country))
+            );
+        });
+    }
 
-  async getActiveTrack() {
-    return this.#store.core.getMyCurrentPlayingTrack();
-  }
+    async getAlbum(uris, country) {
+        return this.processData(uris, 20, async (ids) =>
+            Promise.mapSeries(
+                (await this.#store.core.getAlbums(ids, { market: country })).body.albums,
+                async (album) => this.wrapAlbumData(album)
+            )
+        );
+    }
 
-  async _gatherCompletely(fn, {offset, limit, sel} = {}) {
-    const {body} = await fn(offset, limit);
-    if (body.next) body[sel].push(...(await this._gatherCompletely(fn, {offset: offset + body.limit, limit, sel})));
-    return body[sel];
-  }
+    async getAlbumTracks(uri, country) {
+        return this.getTrack((await this.getAlbum(uri, country)).tracks.map((item) => item.uri));
+    }
+
+    async getArtist(uris) {
+        return this.processData(uris, 50, async (ids) =>
+            Promise.mapSeries(
+                (await this.#store.core.getArtists(ids)).body.artists,
+                async (artist) => this.wrapArtistData(artist)
+            )
+        );
+    }
+
+    async getPlaylist(uri, country) {
+        const parsedURI = this.parseURI(uri);
+        uri = spotifyUri.formatURI(parsedURI);
+        if (!this.#store.cache.has(uri))
+            this.#store.cache.set(
+                uri,
+                this.wrapPlaylistData(
+                    (await this.#store.core.getPlaylist(parsedURI.id, { market: country })).body
+                )
+            );
+        return this.#store.cache.get(uri);
+    }
+
+    async getPlaylistTracks(uri, country) {
+        const { id } = this.parseURI(uri);
+        return this.getTrack(
+            (
+                await this._gatherCompletely(
+                    (offset, limit) =>
+                        this.#store.core.getPlaylistTracks(id, { offset, limit, market: country }),
+                    { offset: 0, limit: 50, sel: 'items' }
+                )
+            )
+                .filter((item) => !!(item.track && item.track.name))
+                .map((item) => item.track.uri),
+            country
+        );
+    }
+
+    async getArtistAlbums(uri, country) {
+        const { id } = this.parseURI(uri);
+        uri = `spotify:artist_albums:${id}`;
+        if (!this.#store.cache.has(uri))
+            this.#store.cache.set(
+                uri,
+                await this.getAlbum(
+                    (
+                        await this._gatherCompletely(
+                            (offset, limit) =>
+                                this.#store.core.getArtistAlbums(id, {
+                                    offset,
+                                    limit,
+                                    country,
+                                    include_groups: 'album,single,compilation',
+                                }),
+                            { offset: 0, limit: 50, sel: 'items' }
+                        )
+                    )
+                        .filter((item) => item.name)
+                        .map((album) => album.uri),
+                    country
+                )
+            );
+        return this.#store.cache.get(uri);
+    }
+
+    async checkIsActivelyListening() {
+        return (await this.#store.core.getMyCurrentPlaybackState()).statusCode !== '204';
+    }
+
+    async getActiveTrack() {
+        return this.#store.core.getMyCurrentPlayingTrack();
+    }
+
+    async _gatherCompletely(fn, { offset, limit, sel } = {}) {
+        const { body } = await fn(offset, limit);
+        if (body.next)
+            body[sel].push(
+                ...(await this._gatherCompletely(fn, { offset: offset + body.limit, limit, sel }))
+            );
+        return body[sel];
+    }
 }

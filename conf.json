@@ -93,9 +93,9 @@
   },
   "services": {
     "spotify": {
-      "clientId": "3ee9cf67e90346a191bfe735581a5aa0",
-      "clientSecret": "14206998339649fabd3c4057b84edbf2",
-      "refreshToken": "AQCbeNs5NiGfHa6He0BlOdoQwEIdo2lwBmefEvpvqVy8WlL2HV7rmGbb30_oaZHMDf9MgXtGjI0gV_QukL33PE8c2bGqJHeMqdHBUjKWhxOW19snJkGUiyxen8UvmDG-OP4"
+      "clientId": "",
+      "clientSecret": "",
+      "refreshToken": ""
     },
     "apple_music": {
       "storefront": "us"

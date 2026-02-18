@@ -1,38 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Tabs
-    const tabMusic = document.getElementById('tab-music'); // Check if these IDs exist? No, button data-tab="music"
+    // Tabs Navigation
     const tabs = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
 
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-            // Remove active class from all tabs
             tabs.forEach(t => t.classList.remove('active'));
-            // Add active class to clicked tab
             tab.classList.add('active');
-            
             switchTab(tab.dataset.tab);
         });
     });
 
-    // Visualizer init
+    // Initialize Visualizer
     initVisualizer();
-
-    // Quality/Format Display
-    // These are now dynamic, so we don't bind them here
-    
-    // Event Listeners
-    // Search/Download buttons are now inline onclick handlers
     
     // Player Controls
-    // Note: play-btn, prev-btn, etc. use onclick in HTML now too, except play-btn has id 'play-pause-btn' in HTML 
-    // but script uses 'play-pause-btn'. Wait.
-    
     const playBtn = document.getElementById('play-pause-btn');
     if (playBtn) playBtn.addEventListener('click', togglePlay);
-    
-    // document.getElementById('prev-btn').addEventListener('click', playPrev); // Inline onclick
-    // document.getElementById('next-btn').addEventListener('click', playNext); // Inline onclick
     
     const lyricsBtn = document.getElementById('lyrics-btn');
     if (lyricsBtn) lyricsBtn.addEventListener('click', toggleLyrics);
@@ -43,16 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const volumeBtn = document.getElementById('volume-btn');
     if (volumeBtn) volumeBtn.addEventListener('click', toggleMute);
     
-    // document.getElementById('shuffle-btn').addEventListener('click', toggleShuffle); // Inline onclick
-    // document.getElementById('repeat-btn').addEventListener('click', toggleRepeat); // Inline onclick
-
     const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
     const volumeSlider = document.getElementById('volume-slider');
     const audio = document.getElementById('main-audio');
     
-    if (progressBar) {
-        progressBar.addEventListener('click', (e) => {
-             const rect = progressBar.getBoundingClientRect();
+    if (progressContainer) {
+        progressContainer.addEventListener('click', (e) => {
+             const rect = progressContainer.getBoundingClientRect();
              const pos = (e.clientX - rect.left) / rect.width;
              if (audio && audio.duration) {
                  audio.currentTime = pos * audio.duration;
@@ -79,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// State
+// State Management
 let currentMetadata = null;
 let playerPlaylist = [];
 let currentTrackIndex = 0;
@@ -91,15 +73,16 @@ let shuffleIndex = -1; // Current index in shuffle history
 
 // --- Music Functions ---
 
+/**
+ * Fetch metadata for the entered URL
+ */
 async function fetchMetadata() {
     const url = document.getElementById('searchInput').value;
-    const loader = document.getElementById('music-loader');
-    const results = document.getElementById('music-results'); // Wait, results ID changed too?
+    const resultsDiv = document.getElementById('results');
     
     if (!url) return;
     
     // UI Feedback
-    const resultsDiv = document.getElementById('results');
     resultsDiv.innerHTML = '<div class="loader">Recherche en cours...</div>';
 
     try {
@@ -334,7 +317,8 @@ async function loadTrack(index) {
     document.getElementById('player-bar').classList.remove('hidden');
     document.getElementById('player-title').textContent = track.name;
     document.getElementById('player-artist').textContent = Array.isArray(track.artists) ? track.artists.join(', ') : track.artists;
-    document.getElementById('player-cover').src = track.cover_url || '';
+    const artEl = document.getElementById('player-art');
+    if (artEl) artEl.src = track.cover_url || artEl.src;
     
     // Highlight in list
     document.querySelectorAll('.track-item').forEach((el, i) => {
@@ -454,18 +438,11 @@ function renderLyrics() {
 function updateProgress() {
     const audio = document.getElementById('main-audio');
     const progressBar = document.getElementById('progress-bar');
-    const currentTimeSpan = document.getElementById('current-time');
-    const totalDurationSpan = document.getElementById('total-duration');
-    
-    if (isNaN(audio.duration)) return;
+    if (!audio || !progressBar || isNaN(audio.duration)) return;
 
     const percent = (audio.currentTime / audio.duration) * 100;
-    progressBar.value = percent;
+    progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
     
-    currentTimeSpan.textContent = formatDuration(audio.currentTime * 1000);
-    totalDurationSpan.textContent = formatDuration(audio.duration * 1000);
-    
-    // Sync Lyrics
     if (lyricsData.length > 0) {
         let activeIndex = -1;
         for (let i = 0; i < lyricsData.length; i++) {
@@ -627,16 +604,27 @@ function playNext() {
     loadTrack(nextIndex);
 }
 
+/**
+ * Toggle lyrics overlay visibility
+ */
 function toggleLyrics() {
     document.getElementById('lyrics-overlay').classList.toggle('hidden');
 }
 
+/**
+ * Toggle mute state
+ */
 function toggleMute() {
     const audio = document.getElementById('main-audio');
     audio.muted = !audio.muted;
     document.getElementById('volume-btn').textContent = audio.muted ? '🔇' : '🔊';
 }
 
+/**
+ * Format milliseconds to MM:SS
+ * @param {number} ms 
+ * @returns {string}
+ */
 function formatDuration(ms) {
     if (!ms) return '0:00';
     const minutes = Math.floor(ms / 60000);
@@ -646,16 +634,26 @@ function formatDuration(ms) {
 
 // --- Library & Visualizer Functions ---
 
+/**
+ * Switch between tabs (Music, Video, Library)
+ * @param {string} tabId 
+ */
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(`${tabId}-tab`);
-    if (target) target.classList.add('active');
+    if (target) {
+        target.classList.add('active');
+        // Hide/Show player bar based on context if needed
+    }
     
     if (tabId === 'library') {
         loadLibrary();
     }
 }
 
+/**
+ * Load downloaded files from server
+ */
 async function loadLibrary() {
     const list = document.getElementById('library-list');
     if (!list) return;
@@ -666,39 +664,67 @@ async function loadLibrary() {
         const data = await res.json();
         
         if (data.success && data.files.length > 0) {
-            list.innerHTML = data.files.map(file => `
-                <div class="track-item" onclick="playLibraryFile('${file.url}', '${file.title.replace(/'/g, "\\'")}', '${file.artist.replace(/'/g, "\\'")}', '${file.type}')">
+            // Generate HTML for file list
+            const html = data.files.map((file, index) => {
+                // Escape quotes for onclick attribute
+                const safeTitle = file.title.replace(/'/g, "\\'");
+                const safeArtist = file.artist.replace(/'/g, "\\'");
+                const safeUrl = file.url.replace(/'/g, "\\'");
+                
+                return `
+                <div class="track-item" onclick="playLibraryFile('${safeUrl}', '${safeTitle}', '${safeArtist}', '${file.type}')">
                     <div class="track-info">
                         <div class="track-name">${file.title}</div>
                         <div class="track-artist">${file.artist}</div>
                     </div>
                     <div class="track-duration">${file.type === 'video' ? 'Video' : 'Audio'}</div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
+            
+            list.innerHTML = html;
         } else {
-            list.innerHTML = '<div class="error">Bibliothèque vide.</div>';
+            list.innerHTML = '<div class="error">Bibliothèque vide. Commencez par télécharger des titres !</div>';
         }
     } catch (e) {
-        list.innerHTML = `<div class="error">${e.message}</div>`;
+        list.innerHTML = `<div class="error">Erreur: ${e.message}</div>`;
     }
 }
 
+/**
+ * Play a file from the library
+ * @param {string} url 
+ * @param {string} title 
+ * @param {string} artist 
+ * @param {string} type 
+ */
 function playLibraryFile(url, title, artist, type) {
     document.getElementById('player-bar').classList.remove('hidden');
     document.getElementById('player-title').textContent = title;
     document.getElementById('player-artist').textContent = artist;
-    document.getElementById('player-cover').src = '';
-    document.getElementById('synced-lyrics').innerHTML = '<p>Lecture locale...</p>';
+    
+    const artEl = document.getElementById('player-art');
+    if (artEl) {
+        artEl.src = type === 'video' 
+            ? 'https://via.placeholder.com/300?text=Video' 
+            : 'https://via.placeholder.com/300?text=Audio';
+    }
+    
+    document.getElementById('synced-lyrics').innerHTML = '<p>Lecture locale (Pas de paroles)</p>';
     
     const audio = document.getElementById('main-audio');
     audio.src = url;
     audio.play().then(() => {
-        document.getElementById('play-pause-btn').textContent = '⏸';
-    }).catch(e => console.error(e));
+        const btn = document.getElementById('play-pause-btn');
+        if (btn) btn.textContent = '⏸';
+    }).catch(e => console.error("Library play error:", e));
 }
 
 let audioContext, analyser, source, canvas, ctx;
 
+/**
+ * Initialize Web Audio API Visualizer
+ */
 function initVisualizer() {
     canvas = document.getElementById('visualizer');
     if (!canvas) return;
@@ -713,20 +739,27 @@ function initVisualizer() {
     window.addEventListener('resize', resize);
     resize();
     
+    // AudioContext requires user interaction first
     document.addEventListener('click', setupAudioContext, { once: true });
 }
 
 function setupAudioContext() {
     if (audioContext) return;
+    
     const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+
     audioContext = new AudioContext();
     analyser = audioContext.createAnalyser();
     const audio = document.getElementById('main-audio');
     
     try {
-        source = audioContext.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(audioContext.destination);
+        // Connect audio element to analyser
+        if (!source) {
+            source = audioContext.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+        }
         
         analyser.fftSize = 256;
         const bufferLength = analyser.frequencyBinCount;
@@ -735,18 +768,23 @@ function setupAudioContext() {
         function draw() {
             requestAnimationFrame(draw);
             analyser.getByteFrequencyData(dataArray);
+            
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             const barWidth = (canvas.width / bufferLength) * 2.5;
             let x = 0;
             
             for(let i = 0; i < bufferLength; i++) {
-                const barHeight = dataArray[i] / 2;
+                const barHeight = dataArray[i] / 2; // Scale down height
+                
+                // Color gradient based on frequency
                 const r = barHeight + (25 * (i/bufferLength));
                 const g = 250 * (i/bufferLength);
                 const b = 50;
+                
                 ctx.fillStyle = `rgba(${r},${g},${b}, 0.5)`;
                 ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                
                 x += barWidth + 1;
             }
         }
